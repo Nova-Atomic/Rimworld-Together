@@ -1,7 +1,9 @@
-using System;
 using System.Collections.Concurrent;
-using System.Threading.Tasks;
 using NetMQ;
+using RimworldTogether.Shared.Misc;
+using System.Threading.Tasks;
+using System;
+using System.Threading;
 
 namespace RimworldTogether.Shared.Network
 {
@@ -25,10 +27,18 @@ namespace RimworldTogether.Shared.Network
         {
             new Task(() =>
             {
-                while (true)
+                try
                 {
-                    if (MainNetworkingUnit.isClient) MainNetworkingUnit.client.ExecuteActions();
-                    else MainNetworkingUnit.server.ExecuteActions();
+                    while (true)
+                    {
+                        if (MainNetworkingUnit.IsClient) MainNetworkingUnit.client.ExecuteActions();
+                        else MainNetworkingUnit.server.ExecuteActions();
+                    }
+                }
+                catch (Exception e)
+                {
+                    GameLogger.Error(e.ToString());
+                    throw;
                 }
             }).Start();
         }

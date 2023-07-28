@@ -20,6 +20,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="JsonDiffPatch.Net" Version="2.3.0" />
     <PackageReference Include="Krafs.Rimworld.Ref" Version="1.4.3704" />
     <PackageReference Include="Lib.Harmony" Version="2.2.2" />
     <PackageReference Include="NetMQ" Version="4.0.0.207" />
@@ -27,8 +28,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\SharedData\**\*.cs">
-      <Link>SharedData\%(RecursiveDir)%(Filename)%(Extension)</Link>
-    </Compile>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\Patched\Newtonsoft.Json.Patched.dll</HintPath>
+    </Reference>
   </ItemGroup>
+  <Import Project="..\Shared\Shared.projitems" Label="Shared" />
 </Project>

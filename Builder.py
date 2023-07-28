@@ -18,6 +18,7 @@ def error(message, linesbefore=0, linesafter=0):
 import os
 import shutil
 import subprocess
+import time
 from tkinter import filedialog
 
 # Enable Console Colors
@@ -40,13 +41,21 @@ destination_dir = f"Build/{modSteamId}"
 
 # Mod C# and DLLs
 source_solution = "Source/Client/GameClient.csproj"
+
 dll_output_dir = "Source/Client/bin/Debug/net472/"
 dll_destination_dir = os.path.join(destination_dir, "Current/Assemblies/")
-dll_names = ["GameClient.dll", "AsyncIO.dll", "NetMQ.dll"]
+dll_names = ["GameClient.dll", "AsyncIO.dll", "NetMQ.dll", "Newtonsoft.Json.Patched.dll", "JsonDiffPatchDotNet.dll"]
 
 # RimWorld Directory
 rimworld_dir_file = "rimworld_dir.txt"
 rimworld_dir = ""
+
+# RimWorld Execution Details
+userA = "name=A" # name and password are the same
+userB = "name=B"
+fastConnect = "fastConnect=true" # shows button
+instantConnect = "instantConnect=true" # auto connects, ignores the above button
+forceDevMode = "forceDevMode=true" # shows dev mode button
 
 
 def handle_rim_world_path(possible_rimworld_dir):
@@ -86,7 +95,12 @@ def build():
     shutil.copytree(source_dir, destination_dir)
 
     # Build the C# project
-    subprocess.run(["dotnet", "build", source_solution, "--configuration", "Debug"])
+    result = subprocess.run(["dotnet", "build", source_solution, "--configuration", "Debug"],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    print(result.stdout)
+
+    assert "Build succeeded." in result.stdout, "Build did not succeed"
+    assert "Build FAILED." not in result.stdout, "Build failed"
 
     # If the destination path doesn't exist, create it
     os.makedirs(dll_destination_dir, exist_ok=True)
@@ -108,6 +122,7 @@ def run():
 
     default_rimworld_dirs = [
         "C:/Games/Rimworld",
+        "C:/Games/Rimworld - Copy",
         "C:/Program Files (x86)/Steam/steamapps/common/RimWorld"
     ]
 
@@ -157,7 +172,9 @@ def run():
         if proc.info['exe'] and os.path.normcase(os.path.realpath(proc.info['exe'])) == norm_exe_path:
             proc.kill()  # If so, kill the process
 
-    subprocess.Popen(norm_exe_path)
+    subprocess.Popen([norm_exe_path, userA, fastConnect, instantConnect, forceDevMode])
+    time.sleep(2)
+    subprocess.Popen([norm_exe_path, userB, fastConnect, instantConnect, forceDevMode])
 
 
 try:

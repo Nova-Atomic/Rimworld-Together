@@ -15,7 +15,8 @@ namespace RimworldTogether.Shared.Network
 
         public void Connect(string address = "localhost", int port = MainNetworkingUnit.startPort)
         {
-            MainNetworkingUnit.isClient = true;
+            if(MainNetworkingUnit.server != null) throw new Exception("Attempted to connect to server while server is running");
+            MainNetworkingUnit.IsClient = true;
             guid = Guid.NewGuid();
             Console.WriteLine($"Connectting to server with guid {guid}");
             _subscriberSocket = new SubscriberSocket();
@@ -34,7 +35,6 @@ namespace RimworldTogether.Shared.Network
                 _subscriberSocket.Subscribe($"{playerId}");
                 Console.WriteLine($"Connected {guid} with player id {playerId}");
             });
-            SpawnExecuteActionsTask();
         }
 
         protected override void ServerReceiveReady(object sender, NetMQSocketEventArgs e)
