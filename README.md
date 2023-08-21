@@ -27,7 +27,7 @@ cd Rimworld-Together/docker
 docker compose up --build # Add -d to run in background
 ```
 
-This will create a `data` folder in the current directory, which will contain all the generated server files.
+This will create a `data` folder in the current directory, which will contain all the generated server files. Be sure to edit the server config and change the IP to your local IP address, or `0.0.0.0`.
 
 
 ### Without Docker
