@@ -41,7 +41,7 @@ namespace RimworldTogether.GameClient.Core
 
             if (listingStandard.ButtonTextLabeled("Open logs folder", "Open"))
             {
-                try { System.Diagnostics.Process.Start(GenFilePaths.SaveDataFolderPath); } catch { }
+                try { System.Diagnostics.Process.Start(Main.mainPath); } catch { }
             }
 
             listingStandard.GapLine();
