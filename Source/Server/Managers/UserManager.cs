@@ -1,7 +1,7 @@
-﻿using RimworldTogether.GameServer.Core;
+﻿using Microsoft.Extensions.Logging;
+using RimworldTogether.GameServer.Core;
 using RimworldTogether.GameServer.Files;
 using RimworldTogether.GameServer.Managers.Actions;
-using RimworldTogether.GameServer.Misc;
 using RimworldTogether.GameServer.Network;
 using RimworldTogether.Shared.JSON;
 using RimworldTogether.Shared.Misc;
@@ -9,9 +9,23 @@ using RimworldTogether.Shared.Network;
 
 namespace RimworldTogether.GameServer.Managers
 {
-    public static class UserManager
+    public class UserManager
     {
-        public static void LoadDataFromFile(Client client)
+        private readonly ILogger<UserManager> logger;
+        private readonly ClientManager clientManager;
+        private readonly UserManager_Joinings userManager_Joinings;
+
+        public UserManager(
+            ILogger<UserManager> logger,
+            ClientManager clientManager,
+            UserManager_Joinings userManager_Joinings)
+        {
+            this.logger = logger;
+            this.clientManager = clientManager;
+            this.userManager_Joinings = userManager_Joinings;
+        }
+
+        public void LoadDataFromFile(Client client)
         {
             UserFile file = GetUserFile(client);
             client.uid = file.uid;
@@ -24,14 +38,14 @@ namespace RimworldTogether.GameServer.Managers
             client.enemyPlayers = file.enemyPlayers;
             client.allyPlayers = file.allyPlayers;
 
-            Logger.WriteToConsole($"[Handshake] > {client.username} | {client.SavedIP}");
+            logger.LogInformation($"[Handshake] > {client.username} | {client.SavedIP}");
         }
 
         public static UserFile GetUserFile(Client client)
         {
             string[] userFiles = Directory.GetFiles(Program.usersPath);
 
-            foreach(string userFile in userFiles)
+            foreach (string userFile in userFiles)
             {
                 UserFile file = Serializer.SerializeFromFile<UserFile>(userFile);
                 if (file.username == client.username) return file;
@@ -74,33 +88,33 @@ namespace RimworldTogether.GameServer.Managers
             Serializer.SerializeToFile(savePath, userFile);
         }
 
-        public static void SendPlayerRecount()
+        public void SendPlayerRecount()
         {
             PlayerRecountJSON playerRecountJSON = new PlayerRecountJSON();
-            playerRecountJSON.currentPlayers = Network.Network.connectedClients.ToArray().Count().ToString();
-            foreach(Client client in Network.Network.connectedClients.ToArray()) playerRecountJSON.currentPlayerNames.Add(client.username);
+            playerRecountJSON.currentPlayers = clientManager.ClientCount.ToString();
+            foreach (Client client in clientManager.Clients.ToArray()) playerRecountJSON.currentPlayerNames.Add(client.username);
 
             string[] contents = new string[] { Serializer.SerializeToString(playerRecountJSON) };
             Packet packet = new Packet("PlayerRecountPacket", contents);
-            foreach (Client client in Network.Network.connectedClients.ToArray()) Network.Network.SendData(client, packet);
+            foreach (Client client in clientManager.Clients.ToArray()) client.SendData(packet);
         }
 
-        public static bool CheckIfUserIsConnected(string username)
+        public bool CheckIfUserIsConnected(string username)
         {
-            List<Client> connectedClients = Network.Network.connectedClients.ToList();
+            List<Client> connectedClients = clientManager.Clients.ToList();
 
             Client toGet = connectedClients.Find(x => x.username == username);
             if (toGet != null) return true;
             else return false;
         }
 
-        public static Client GetConnectedClientFromUsername(string username)
+        public Client GetConnectedClientFromUsername(string username)
         {
-            List<Client> connectedClients = Network.Network.connectedClients.ToList();
+            List<Client> connectedClients = clientManager.Clients.ToList();
             return connectedClients.Find(x => x.username == username);
         }
 
-        public static bool CheckIfUserExists(Client client)
+        public bool CheckIfUserExists(Client client)
         {
             string[] existingUsers = Directory.GetFiles(Program.usersPath);
 
@@ -113,24 +127,24 @@ namespace RimworldTogether.GameServer.Managers
                     if (existingUser.password == client.password) return true;
                     else
                     {
-                        UserManager_Joinings.SendLoginResponse(client, UserManager_Joinings.LoginResponse.InvalidLogin);
+                        userManager_Joinings.SendLoginResponse(client, UserManager_Joinings.LoginResponse.InvalidLogin);
 
                         return false;
                     }
                 }
             }
 
-            UserManager_Joinings.SendLoginResponse(client, UserManager_Joinings.LoginResponse.InvalidLogin);
+            userManager_Joinings.SendLoginResponse(client, UserManager_Joinings.LoginResponse.InvalidLogin);
 
             return false;
         }
 
-        public static bool CheckIfUserBanned(Client client)
+        public bool CheckIfUserBanned(Client client)
         {
             if (!client.isBanned) return false;
             else
             {
-                UserManager_Joinings.SendLoginResponse(client, UserManager_Joinings.LoginResponse.BannedLogin);
+                userManager_Joinings.SendLoginResponse(client, UserManager_Joinings.LoginResponse.BannedLogin);
                 return true;
             }
         }
@@ -152,71 +166,6 @@ namespace RimworldTogether.GameServer.Managers
             foreach (SiteFile site in sites) tilesToExclude.Add(site.tile);
 
             return tilesToExclude.ToArray();
-        }
-    }
-
-    public static class UserManager_Joinings
-    {
-        public enum CheckMode { Login, Register }
-
-        public enum LoginResponse
-        {
-            InvalidLogin,
-            BannedLogin,
-            RegisterSuccess,
-            RegisterInUse,
-            RegisterError,
-            ExtraLogin,
-            WrongMods,
-            ServerFull,
-            Whitelist
-        }
-
-        public static bool CheckLoginDetails(Client client, CheckMode mode)
-        {
-            bool isInvalid = false;
-            if (string.IsNullOrWhiteSpace(client.username)) isInvalid = true;
-            if (client.username.Any(Char.IsWhiteSpace)) isInvalid = true;
-            if (string.IsNullOrWhiteSpace(client.password)) isInvalid = true;
-            if (client.username.Length > 32) isInvalid = true;
-
-            if (!isInvalid) return true;
-            else
-            {
-                if (mode == CheckMode.Login) SendLoginResponse(client, LoginResponse.InvalidLogin);
-                else if (mode == CheckMode.Register) SendLoginResponse(client, LoginResponse.RegisterError);
-                return false;
-            }
-        }
-
-        public static void SendLoginResponse(Client client, LoginResponse response, object extraDetails = null)
-        {
-            LoginDetailsJSON loginDetailsJSON = new LoginDetailsJSON();
-            loginDetailsJSON.tryResponse = ((int)response).ToString();
-
-            if (response == LoginResponse.WrongMods) loginDetailsJSON.conflictingMods = (List<string>)extraDetails;
-
-            string[] contents = new string[] { Serializer.SerializeToString(loginDetailsJSON) };
-            Packet packet = new Packet("LoginResponsePacket", contents);
-            Network.Network.SendData(client, packet);
-
-            client.disconnectFlag = true;
-        }
-
-        public static bool CheckWhitelist(Client client)
-        {
-            if (!Program.whitelist.UseWhitelist) return true;
-            else
-            {
-                foreach(string str in Program.whitelist.WhitelistedUsers)
-                {
-                    if (str == client.username) return true;
-                }
-            }
-
-            SendLoginResponse(client, LoginResponse.Whitelist);
-
-            return false;
         }
     }
 }

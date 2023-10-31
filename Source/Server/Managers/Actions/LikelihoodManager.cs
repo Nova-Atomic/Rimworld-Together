@@ -1,5 +1,4 @@
 ﻿using RimworldTogether.GameServer.Files;
-using RimworldTogether.GameServer.Misc;
 using RimworldTogether.GameServer.Network;
 using RimworldTogether.Shared.JSON;
 using RimworldTogether.Shared.Misc;
@@ -7,11 +6,22 @@ using RimworldTogether.Shared.Network;
 
 namespace RimworldTogether.GameServer.Managers.Actions
 {
-    public static class LikelihoodManager
+    public class LikelihoodManager
     {
+        private readonly ClientManager clientManager;
+        private readonly ResponseShortcutManager responseShortcutManager;
+
         private enum Likelihoods { Enemy, Neutral, Ally, Faction, Personal }
 
-        public static void ChangeUserLikelihoods(Client client, Packet packet)
+        public LikelihoodManager(
+            ClientManager clientManager,
+            ResponseShortcutManager responseShortcutManager)
+        {
+            this.clientManager = clientManager;
+            this.responseShortcutManager = responseShortcutManager;
+        }
+
+        public void ChangeUserLikelihoods(Client client, Packet packet)
         {
             StructureLikelihoodJSON structureLikelihoodJSON = Serializer.SerializeFromString<StructureLikelihoodJSON>(packet.contents[0]);
             SettlementFile settlementFile = SettlementManager.GetSettlementFileFromTile(structureLikelihoodJSON.tile);
@@ -22,7 +32,7 @@ namespace RimworldTogether.GameServer.Managers.Actions
 
             if (client.hasFaction && FactionManager.GetFactionFromClient(client).factionMembers.Contains(structureLikelihoodJSON.owner))
             {
-                ResponseShortcutManager.SendBreakPacket(client);
+                responseShortcutManager.SendBreakPacket(client);
                 return;
             }
 
@@ -84,7 +94,7 @@ namespace RimworldTogether.GameServer.Managers.Actions
 
             string[] contents = new string[] { Serializer.SerializeToString(structureLikelihoodJSON) };
             Packet rPacket = new Packet("LikelihoodPacket", contents);
-            Network.Network.SendData(client, rPacket);
+            client.SendData(rPacket);
         }
 
         public static int GetLikelihoodFromTile(Client client, string tileToCheck)
@@ -133,7 +143,7 @@ namespace RimworldTogether.GameServer.Managers.Actions
 
                 FactionFile factionFile = FactionManager.GetFactionFromFactionName(site.factionName);
 
-                foreach(string str in client.enemyPlayers)
+                foreach (string str in client.enemyPlayers)
                 {
                     if (FactionManager.CheckIfUserIsInFaction(factionFile, str))
                     {
@@ -161,9 +171,9 @@ namespace RimworldTogether.GameServer.Managers.Actions
             }
         }
 
-        public static void ClearAllFactionMemberLikelihoods(FactionFile factionFile)
+        public void ClearAllFactionMemberLikelihoods(FactionFile factionFile)
         {
-            Client[] clients = Network.Network.connectedClients.ToArray();
+            Client[] clients = clientManager.Clients.ToArray();
             List<Client> clientsToGet = new List<Client>();
 
             foreach (Client client in clients)
@@ -214,7 +224,7 @@ namespace RimworldTogether.GameServer.Managers.Actions
             }
         }
 
-        public static void UpdateClientLikelihoods(Client client)
+        public void UpdateClientLikelihoods(Client client)
         {
             SettlementFile[] settlements = SettlementManager.GetAllSettlements();
             SiteFile[] sites = SiteManager.GetAllSites();
@@ -237,7 +247,7 @@ namespace RimworldTogether.GameServer.Managers.Actions
 
             string[] contents = new string[] { Serializer.SerializeToString(structureLikelihoodJSON) };
             Packet packet = new Packet("LikelihoodPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
         }
     }
 }

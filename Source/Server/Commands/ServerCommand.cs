@@ -1,4 +1,6 @@
-﻿namespace RimworldTogether.GameServer.Commands
+﻿using RimworldTogether.GameServer.Managers;
+
+namespace RimworldTogether.GameServer.Commands
 {
     public class ServerCommand
     {
@@ -8,9 +10,9 @@
 
         public int parameters;
 
-        public Action commandAction;
+        public Action<ServerCommandManager> commandAction;
 
-        public ServerCommand(string prefix, int parameters, string description, Action commandAction)
+        public ServerCommand(string prefix, int parameters, string description, Action<ServerCommandManager> commandAction)
         {
             this.prefix = prefix;
             this.parameters = parameters;

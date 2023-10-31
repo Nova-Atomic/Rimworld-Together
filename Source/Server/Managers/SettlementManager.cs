@@ -1,7 +1,7 @@
-﻿using RimworldTogether.GameServer.Core;
+﻿using Microsoft.Extensions.Logging;
+using RimworldTogether.GameServer.Core;
 using RimworldTogether.GameServer.Files;
 using RimworldTogether.GameServer.Managers.Actions;
-using RimworldTogether.GameServer.Misc;
 using RimworldTogether.GameServer.Network;
 using RimworldTogether.Shared.JSON;
 using RimworldTogether.Shared.Misc;
@@ -9,11 +9,25 @@ using RimworldTogether.Shared.Network;
 
 namespace RimworldTogether.GameServer.Managers
 {
-    public static class SettlementManager
+    public class SettlementManager
     {
+        private readonly ILogger<SettlementManager> logger;
+        private readonly ClientManager clientManager;
+        private readonly ResponseShortcutManager responseShortcutManager;
+
         public enum SettlementStepMode { Add, Remove }
 
-        public static void ParseSettlementPacket(Client client, Packet packet)
+        public SettlementManager(
+            ILogger<SettlementManager> logger,
+            ClientManager clientManager,
+            ResponseShortcutManager responseShortcutManager)
+        {
+            this.logger = logger;
+            this.clientManager = clientManager;
+            this.responseShortcutManager = responseShortcutManager;
+        }
+
+        public void ParseSettlementPacket(Client client, Packet packet)
         {
             SettlementDetailsJSON settlementDetailsJSON = Serializer.SerializeFromString<SettlementDetailsJSON>(packet.contents[0]);
 
@@ -32,7 +46,7 @@ namespace RimworldTogether.GameServer.Managers
         public static bool CheckIfTileIsInUse(string tileToCheck)
         {
             string[] settlements = Directory.GetFiles(Program.settlementsPath);
-            foreach(string settlement in settlements)
+            foreach (string settlement in settlements)
             {
                 SettlementFile settlementJSON = Serializer.SerializeFromFile<SettlementFile>(settlement);
                 if (settlementJSON.tile == tileToCheck) return true;
@@ -92,9 +106,9 @@ namespace RimworldTogether.GameServer.Managers
             return settlementList.ToArray();
         }
 
-        public static void AddSettlement(Client client, SettlementDetailsJSON settlementDetailsJSON)
+        public void AddSettlement(Client client, SettlementDetailsJSON settlementDetailsJSON)
         {
-            if (CheckIfTileIsInUse(settlementDetailsJSON.tile)) ResponseShortcutManager.SendIllegalPacket(client);
+            if (CheckIfTileIsInUse(settlementDetailsJSON.tile)) responseShortcutManager.SendIllegalPacket(client);
             else
             {
                 settlementDetailsJSON.owner = client.username;
@@ -105,7 +119,7 @@ namespace RimworldTogether.GameServer.Managers
                 Serializer.SerializeToFile(Path.Combine(Program.settlementsPath, settlementFile.tile + ".json"), settlementFile);
 
                 settlementDetailsJSON.settlementStepMode = ((int)SettlementStepMode.Add).ToString();
-                foreach (Client cClient in Network.Network.connectedClients.ToArray())
+                foreach (Client cClient in clientManager.Clients.ToArray())
                 {
                     if (cClient == client) continue;
                     else
@@ -114,23 +128,23 @@ namespace RimworldTogether.GameServer.Managers
 
                         string[] contents = new string[] { Serializer.SerializeToString(settlementDetailsJSON) };
                         Packet rPacket = new Packet("SettlementPacket", contents);
-                        Network.Network.SendData(cClient, rPacket);
+                        cClient.SendData(rPacket);
                     }
                 }
 
-                Logger.WriteToConsole($"[Added settlement] > {settlementFile.tile} > {client.username}", Logger.LogMode.Warning);
+                logger.LogWarning($"[Added settlement] > {settlementFile.tile} > {client.username}");
             }
         }
 
-        public static void RemoveSettlement(Client client, SettlementDetailsJSON settlementDetailsJSON, bool sendRemoval = true)
+        public void RemoveSettlement(Client client, SettlementDetailsJSON settlementDetailsJSON, bool sendRemoval = true)
         {
-            if (!CheckIfTileIsInUse(settlementDetailsJSON.tile)) ResponseShortcutManager.SendIllegalPacket(client);
+            if (!CheckIfTileIsInUse(settlementDetailsJSON.tile)) responseShortcutManager.SendIllegalPacket(client);
 
             SettlementFile settlementFile = GetSettlementFileFromTile(settlementDetailsJSON.tile);
 
             if (sendRemoval)
             {
-                if (settlementFile.owner != client.username) ResponseShortcutManager.SendIllegalPacket(client);
+                if (settlementFile.owner != client.username) responseShortcutManager.SendIllegalPacket(client);
                 else
                 {
                     File.Delete(Path.Combine(Program.settlementsPath, settlementFile.tile + ".json"));
@@ -143,22 +157,22 @@ namespace RimworldTogether.GameServer.Managers
             {
                 File.Delete(Path.Combine(Program.settlementsPath, settlementFile.tile + ".json"));
 
-                Logger.WriteToConsole($"[Remove settlement] > {settlementFile.tile}", Logger.LogMode.Warning);
+                logger.LogWarning($"[Remove settlement] > {settlementFile.tile}");
             }
         }
 
-        private static void SendSettlementRemoval(Client client, SettlementDetailsJSON settlementDetailsJSON)
+        private void SendSettlementRemoval(Client client, SettlementDetailsJSON settlementDetailsJSON)
         {
             settlementDetailsJSON.settlementStepMode = ((int)SettlementStepMode.Remove).ToString();
             string[] contents = new string[] { Serializer.SerializeToString(settlementDetailsJSON) };
             Packet rPacket = new Packet("SettlementPacket", contents);
-            foreach (Client cClient in Network.Network.connectedClients.ToArray())
+            foreach (Client cClient in clientManager.Clients.ToArray())
             {
                 if (cClient == client) continue;
-                else Network.Network.SendData(cClient, rPacket);
+                else cClient.SendData(rPacket);
             }
 
-            Logger.WriteToConsole($"[Remove settlement] > {settlementDetailsJSON.tile} > {client.username}", Logger.LogMode.Warning);
+            logger.LogWarning($"[Remove settlement] > {settlementDetailsJSON.tile} > {client.username}");
         }
     }
 }

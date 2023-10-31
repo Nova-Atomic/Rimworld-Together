@@ -1,4 +1,7 @@
-﻿namespace RimworldTogether.GameServer.Commands
+﻿using RimworldTogether.GameServer.Managers;
+using RimworldTogether.GameServer.Network;
+
+namespace RimworldTogether.GameServer.Commands
 {
     public class ChatCommand
     {
@@ -8,9 +11,9 @@
 
         public int parameters;
 
-        public Action commandAction;
+        public Action<ChatManager, Client> commandAction;
 
-        public ChatCommand(string prefix, int parameters, string description, Action commandAction)
+        public ChatCommand(string prefix, int parameters, string description, Action<ChatManager, Client> commandAction)
         {
             this.prefix = prefix;
             this.parameters = parameters;

@@ -6,86 +6,140 @@ using RimworldTogether.Shared.Network;
 
 namespace RimworldTogether.GameServer.Network
 {
-    public static class PacketHandler
+    public class PacketHandler
     {
-        public static void HandlePacket(Client client, Packet packet)
+        private readonly SettlementManager settlementManager;
+        private readonly EventManager eventManager;
+        private readonly FactionManager factionManager;
+        private readonly LikelihoodManager likelihoodManager;
+        private readonly ChatManager chatManager;
+        private readonly SpyManager spyManager;
+        private readonly UserLogin userLogin;
+        private readonly SaveManager saveManager;
+        private readonly TransferManager transferManager;
+        private readonly SiteManager siteManager;
+        private readonly VisitManager visitManager;
+        private readonly OfflineVisitManager offlineVisitManager;
+        private readonly RaidManager raidManager;
+        private readonly WorldManager worldManager;
+        private readonly CustomDifficultyManager customDifficultyManager;
+        private readonly UserRegister userRegister;
+
+        public PacketHandler(
+            SettlementManager settlementManager,
+            EventManager eventManager,
+            FactionManager factionManager,
+            LikelihoodManager likelihoodManager,
+            ChatManager chatManager,
+            SpyManager spyManager,
+            UserLogin userLogin,
+            SaveManager saveManager,
+            TransferManager transferManager,
+            SiteManager siteManager,
+            VisitManager visitManager,
+            OfflineVisitManager offlineVisitManager,
+            RaidManager raidManager,
+            WorldManager worldManager,
+            CustomDifficultyManager customDifficultyManager,
+            UserRegister userRegister
+            )
         {
-            #if DEBUG
+            this.settlementManager = settlementManager;
+            this.eventManager = eventManager;
+            this.factionManager = factionManager;
+            this.likelihoodManager = likelihoodManager;
+            this.chatManager = chatManager;
+            this.spyManager = spyManager;
+            this.userLogin = userLogin;
+            this.saveManager = saveManager;
+            this.transferManager = transferManager;
+            this.siteManager = siteManager;
+            this.visitManager = visitManager;
+            this.offlineVisitManager = offlineVisitManager;
+            this.raidManager = raidManager;
+            this.worldManager = worldManager;
+            this.customDifficultyManager = customDifficultyManager;
+            this.userRegister = userRegister;
+        }
+
+        public void HandlePacket(Client client, Packet packet)
+        {
+#if DEBUG
             Debug.WriteLine(packet.header);
-            #endif
+#endif
 
             switch (packet.header)
             {
                 case "LoginClientPacket":
-                    UserLogin.TryLoginUser(client, packet);
+                    userLogin.TryLoginUser(client, packet);
                     break;
 
                 case "RegisterClientPacket":
-                    UserRegister.TryRegisterUser(client, packet);
+                    userRegister.TryRegisterUser(client, packet);
                     break;
 
                 case "SaveFilePacket":
-                    SaveManager.SaveUserGame(client, packet);
+                    saveManager.SaveUserGame(client, packet);
                     break;
 
                 case "LikelihoodPacket":
-                    LikelihoodManager.ChangeUserLikelihoods(client, packet);
+                    likelihoodManager.ChangeUserLikelihoods(client, packet);
                     break;
 
                 case "TransferPacket":
-                    TransferManager.ParseTransferPacket(client, packet);
+                    transferManager.ParseTransferPacket(client, packet);
                     break;
 
                 case "SitePacket":
-                    SiteManager.ParseSitePacket(client, packet);
+                    siteManager.ParseSitePacket(client, packet);
                     break;
 
                 case "VisitPacket":
-                    VisitManager.ParseVisitPacket(client, packet);
+                    visitManager.ParseVisitPacket(client, packet);
                     break;
 
                 case "OfflineVisitPacket":
-                    OfflineVisitManager.ParseOfflineVisitPacket(client, packet);
+                    offlineVisitManager.ParseOfflineVisitPacket(client, packet);
                     break;
 
                 case "ChatPacket":
-                    ChatManager.ParseClientMessages(client, packet);
+                    chatManager.ParseClientMessages(client, packet);
                     break;
 
                 case "FactionPacket":
-                    FactionManager.ParseFactionPacket(client, packet);
+                    factionManager.ParseFactionPacket(client, packet);
                     break;
 
                 case "MapPacket":
-                    SaveManager.SaveUserMap(client, packet);
+                    saveManager.SaveUserMap(client, packet);
                     break;
 
                 case "RaidPacket":
-                    RaidManager.ParseRaidPacket(client, packet);
+                    raidManager.ParseRaidPacket(client, packet);
                     break;
 
                 case "SpyPacket":
-                    SpyManager.ParseSpyPacket(client, packet);
+                    spyManager.ParseSpyPacket(client, packet);
                     break;
 
                 case "SettlementPacket":
-                    SettlementManager.ParseSettlementPacket(client, packet);
+                    settlementManager.ParseSettlementPacket(client, packet);
                     break;
 
                 case "EventPacket":
-                    EventManager.ParseEventPacket(client, packet);
+                    eventManager.ParseEventPacket(client, packet);
                     break;
 
                 case "WorldPacket":
-                    WorldManager.ParseWorldPacket(client, packet);
+                    worldManager.ParseWorldPacket(client, packet);
                     break;
 
                 case "CustomDifficultyPacket":
-                    CustomDifficultyManager.ParseDifficultyPacket(client, packet);
+                    customDifficultyManager.ParseDifficultyPacket(client, packet);
                     break;
 
                 case "ResetSavePacket":
-                    SaveManager.ResetClientSave(client);
+                    saveManager.ResetClientSave(client);
                     break;
             }
         }

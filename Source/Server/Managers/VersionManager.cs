@@ -2,8 +2,7 @@
 {
     public static class VersionManager
     {
-        //TODO
-        //Maybe someday
+        //TODO - Maybe someday
 
         public static void CheckForClientVersion(string clientVersion)
         {

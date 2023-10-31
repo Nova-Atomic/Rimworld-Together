@@ -4,10 +4,10 @@ namespace RimworldTogether.GameServer.Misc
 {
     public static class Titler
     {
-        public static void ChangeTitle()
+        public static void ChangeTitle(int connectedCount, int maxPlayers)
         {
             Console.Title = $"Rimworld Together {Program.serverVersion} - " +
-                $"Players [{Network.Network.connectedClients.Count}/{Program.serverConfig.MaxPlayers}]";
+                $"Players [{connectedCount}/{maxPlayers}]";
         }
     }
 }

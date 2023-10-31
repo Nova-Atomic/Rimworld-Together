@@ -1,5 +1,4 @@
 ﻿using RimworldTogether.GameServer.Files;
-using RimworldTogether.GameServer.Misc;
 using RimworldTogether.GameServer.Network;
 using RimworldTogether.Shared.JSON.Actions;
 using RimworldTogether.Shared.Misc;
@@ -7,11 +6,18 @@ using RimworldTogether.Shared.Network;
 
 namespace RimworldTogether.GameServer.Managers.Actions
 {
-    public static class RaidManager
+    public class RaidManager
     {
+        private readonly UserManager userManager;
+
         private enum RaidStepMode { Request, Deny }
 
-        public static void ParseRaidPacket(Client client, Packet packet)
+        public RaidManager(UserManager userManager)
+        {
+            this.userManager = userManager;
+        }
+
+        public void ParseRaidPacket(Client client, Packet packet)
         {
             RaidDetailsJSON raidDetailsJSON = Serializer.SerializeFromString<RaidDetailsJSON>(packet.contents[0]);
 
@@ -27,26 +33,26 @@ namespace RimworldTogether.GameServer.Managers.Actions
             }
         }
 
-        private static void SendRequestedMap(Client client, RaidDetailsJSON raidDetailsJSON)
+        private void SendRequestedMap(Client client, RaidDetailsJSON raidDetailsJSON)
         {
             if (!SaveManager.CheckIfMapExists(raidDetailsJSON.raidData))
             {
                 raidDetailsJSON.raidStepMode = ((int)RaidStepMode.Deny).ToString();
                 string[] contents = new string[] { Serializer.SerializeToString(raidDetailsJSON) };
                 Packet packet = new Packet("RaidPacket", contents);
-                Network.Network.SendData(client, packet);
+                client.SendData(packet);
             }
 
             else
             {
                 SettlementFile settlementFile = SettlementManager.GetSettlementFileFromTile(raidDetailsJSON.raidData);
 
-                if (UserManager.CheckIfUserIsConnected(settlementFile.owner))
+                if (userManager.CheckIfUserIsConnected(settlementFile.owner))
                 {
                     raidDetailsJSON.raidStepMode = ((int)RaidStepMode.Deny).ToString();
                     string[] contents = new string[] { Serializer.SerializeToString(raidDetailsJSON) };
                     Packet packet = new Packet("RaidPacket", contents);
-                    Network.Network.SendData(client, packet);
+                    client.SendData(packet);
                 }
 
                 else
@@ -56,7 +62,7 @@ namespace RimworldTogether.GameServer.Managers.Actions
 
                     string[] contents = new string[] { Serializer.SerializeToString(raidDetailsJSON) };
                     Packet packet = new Packet("RaidPacket", contents);
-                    Network.Network.SendData(client, packet);
+                    client.SendData(packet);
                 }
             }
         }

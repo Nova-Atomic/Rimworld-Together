@@ -1,7 +1,6 @@
 ﻿using RimworldTogether.GameServer.Core;
 using RimworldTogether.GameServer.Files;
 using RimworldTogether.GameServer.Managers.Actions;
-using RimworldTogether.GameServer.Misc;
 using RimworldTogether.GameServer.Network;
 using RimworldTogether.Shared.JSON;
 using RimworldTogether.Shared.Misc;
@@ -9,9 +8,14 @@ using RimworldTogether.Shared.Network;
 
 namespace RimworldTogether.GameServer.Managers
 {
-    public static class ServerOverallManager
+    public class ServerOverallManager
     {
-        public static void SendServerOveralls(Client client)
+        public ServerOverallManager()
+        {
+
+        }
+
+        public void SendServerOveralls(Client client)
         {
             ServerOverallJSON so = new ServerOverallJSON();
 
@@ -33,7 +37,7 @@ namespace RimworldTogether.GameServer.Managers
 
             string[] contents = new string[] { Serializer.SerializeToString(so) };
             Packet packet = new Packet("ServerValuesPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
         }
 
         private static ServerOverallJSON GetServerValues(ServerOverallJSON so)

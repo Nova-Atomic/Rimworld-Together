@@ -1,49 +1,54 @@
-﻿using RimworldTogether.GameServer.Core;
+﻿using Microsoft.Extensions.Logging;
+using RimworldTogether.GameServer.Core;
 using RimworldTogether.GameServer.Files;
-using RimworldTogether.GameServer.Misc;
 using RimworldTogether.Shared.Misc;
 
 namespace RimworldTogether.GameServer.Managers
 {
-    public static class WhitelistManager
+    public class WhitelistManager
     {
-        public static void AddUserToWhitelist(string username)
+        private readonly ILogger<WhitelistManager> logger;
+
+        public WhitelistManager(ILogger<WhitelistManager> logger)
+        {
+            this.logger = logger;
+        }
+
+        public void AddUserToWhitelist(string username)
         {
             Program.whitelist.WhitelistedUsers.Add(username);
 
             SaveWhitelistFile();
 
-            Logger.WriteToConsole($"User '{ServerCommandManager.commandParameters[0]}' has been whitelisted",
-                        Logger.LogMode.Warning);
+            logger.LogWarning($"User '{ServerCommandManager.commandParameters[0]}' has been whitelisted");
         }
 
-        public static void RemoveUserFromWhitelist(string username)
+        public void RemoveUserFromWhitelist(string username)
         {
             Program.whitelist.WhitelistedUsers.Remove(username);
 
             SaveWhitelistFile();
 
-            Logger.WriteToConsole($"User '{ServerCommandManager.commandParameters[0]}' is no longer whitelisted",
-                Logger.LogMode.Warning);
+            logger.LogWarning($"User '{ServerCommandManager.commandParameters[0]}' is no longer whitelisted");
         }
 
-        public static void ToggleWhitelist()
+        public void ToggleWhitelist()
         {
             Program.whitelist.UseWhitelist = !Program.whitelist.UseWhitelist;
 
             SaveWhitelistFile();
 
-            if (Program.whitelist.UseWhitelist) Logger.WriteToConsole("Whitelist is now ON", Logger.LogMode.Warning);
-            else Logger.WriteToConsole("Whitelist is now OFF", Logger.LogMode.Warning);
+            if (Program.whitelist.UseWhitelist) logger.LogWarning("Whitelist is now ON");
+            else logger.LogWarning("Whitelist is now OFF");
         }
 
-        private static void SaveWhitelistFile()
+        private void SaveWhitelistFile()
         {
-            Serializer.SerializeToFile(Path.Combine(Program.corePath, "Whitelist.json"), 
+            Serializer.SerializeToFile(Path.Combine(Program.corePath, "Whitelist.json"),
                 Program.whitelist);
         }
 
-        public static void LoadServerWhitelist()
+        public void LoadServerWhitelist()
         {
             string path = Path.Combine(Program.corePath, "Whitelist.json");
 
@@ -54,7 +59,7 @@ namespace RimworldTogether.GameServer.Managers
                 Serializer.SerializeToFile(path, Program.whitelist);
             }
 
-            Logger.WriteToConsole("Loaded server whitelist");
+            logger.LogInformation("Loaded server whitelist");
         }
     }
 }

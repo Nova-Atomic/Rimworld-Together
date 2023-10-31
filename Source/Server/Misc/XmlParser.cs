@@ -1,10 +1,18 @@
 ﻿using System.Xml;
+using Microsoft.Extensions.Logging;
 
 namespace RimworldTogether.GameServer.Misc
 {
-    public static class XmlParser
+    public class XmlParser
     {
-        public static string[] ParseDataFromXML(string xmlPath, string elementName)
+        private readonly ILogger<XmlParser> logger;
+
+        public XmlParser(ILogger<XmlParser> logger)
+        {
+            this.logger = logger;
+        }
+
+        public string[] ParseDataFromXML(string xmlPath, string elementName)
         {
             List<string> result = new List<string>();
 
@@ -23,7 +31,7 @@ namespace RimworldTogether.GameServer.Misc
 
                 return result.ToArray();
             }
-            catch(Exception e) { Logger.WriteToConsole($"[Error] > Failed to parse mod at '{xmlPath}'. Exception: {e}", Logger.LogMode.Error); }
+            catch (Exception e) { logger.LogError(e, $"[Error] > Failed to parse mod at '{xmlPath}'. Exception: {e}"); }
 
             return result.ToArray();
         }

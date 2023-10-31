@@ -1,5 +1,4 @@
 ﻿using RimworldTogether.GameServer.Files;
-using RimworldTogether.GameServer.Misc;
 using RimworldTogether.GameServer.Network;
 using RimworldTogether.Shared.JSON.Actions;
 using RimworldTogether.Shared.Misc;
@@ -7,11 +6,20 @@ using RimworldTogether.Shared.Network;
 
 namespace RimworldTogether.GameServer.Managers.Actions
 {
-    public static class VisitManager
+    public class VisitManager
     {
+        private readonly UserManager userManager;
+        private readonly ResponseShortcutManager responseShortcutManager;
+
         public enum VisitStepMode { Request, Accept, Reject, Unavailable, Action, Stop }
 
-        public static void ParseVisitPacket(Client client, Packet packet)
+        public VisitManager(UserManager userManager, ResponseShortcutManager responseShortcutManager)
+        {
+            this.userManager = userManager;
+            this.responseShortcutManager = responseShortcutManager;
+        }
+
+        public void ParseVisitPacket(Client client, Packet packet)
         {
             VisitDetailsJSON visitDetailsJSON = Serializer.SerializeFromString<VisitDetailsJSON>(packet.contents[0]);
 
@@ -39,19 +47,19 @@ namespace RimworldTogether.GameServer.Managers.Actions
             }
         }
 
-        private static void SendVisitRequest(Client client, VisitDetailsJSON visitDetailsJSON)
+        private void SendVisitRequest(Client client, VisitDetailsJSON visitDetailsJSON)
         {
             SettlementFile settlementFile = SettlementManager.GetSettlementFileFromTile(visitDetailsJSON.targetTile);
-            if (settlementFile == null) ResponseShortcutManager.SendIllegalPacket(client);
+            if (settlementFile == null) responseShortcutManager.SendIllegalPacket(client);
             else
             {
-                Client toGet = UserManager.GetConnectedClientFromUsername(settlementFile.owner);
+                Client toGet = userManager.GetConnectedClientFromUsername(settlementFile.owner);
                 if (toGet == null)
                 {
                     visitDetailsJSON.visitStepMode = ((int)VisitStepMode.Unavailable).ToString();
                     string[] contents = new string[] { Serializer.SerializeToString(visitDetailsJSON) };
                     Packet packet = new Packet("VisitPacket", contents);
-                    Network.Network.SendData(client, packet);
+                    client.SendData(packet);
                 }
 
                 else
@@ -61,7 +69,7 @@ namespace RimworldTogether.GameServer.Managers.Actions
                         visitDetailsJSON.visitStepMode = ((int)VisitStepMode.Unavailable).ToString();
                         string[] contents = new string[] { Serializer.SerializeToString(visitDetailsJSON) };
                         Packet packet = new Packet("VisitPacket", contents);
-                        Network.Network.SendData(client, packet);
+                        client.SendData(packet);
                     }
 
                     else
@@ -69,19 +77,19 @@ namespace RimworldTogether.GameServer.Managers.Actions
                         visitDetailsJSON.visitorName = client.username;
                         string[] contents = new string[] { Serializer.SerializeToString(visitDetailsJSON) };
                         Packet packet = new Packet("VisitPacket", contents);
-                        Network.Network.SendData(toGet, packet);
+                        toGet.SendData(packet);
                     }
                 }
             }
         }
 
-        private static void AcceptVisitRequest(Client client, VisitDetailsJSON visitDetailsJSON)
+        private void AcceptVisitRequest(Client client, VisitDetailsJSON visitDetailsJSON)
         {
             SettlementFile settlementFile = SettlementManager.GetSettlementFileFromTile(visitDetailsJSON.fromTile);
             if (settlementFile == null) return;
             else
             {
-                Client toGet = UserManager.GetConnectedClientFromUsername(settlementFile.owner);
+                Client toGet = userManager.GetConnectedClientFromUsername(settlementFile.owner);
                 if (toGet == null) return;
                 else
                 {
@@ -90,56 +98,56 @@ namespace RimworldTogether.GameServer.Managers.Actions
 
                     string[] contents = new string[] { Serializer.SerializeToString(visitDetailsJSON) };
                     Packet packet = new Packet("VisitPacket", contents);
-                    Network.Network.SendData(toGet, packet);
+                    toGet.SendData(packet);
                 }
             }
         }
 
-        private static void RejectVisitRequest(Client client, VisitDetailsJSON visitDetailsJSON)
+        private void RejectVisitRequest(Client client, VisitDetailsJSON visitDetailsJSON)
         {
             SettlementFile settlementFile = SettlementManager.GetSettlementFileFromTile(visitDetailsJSON.fromTile);
             if (settlementFile == null) return;
             else
             {
-                Client toGet = UserManager.GetConnectedClientFromUsername(settlementFile.owner);
+                Client toGet = userManager.GetConnectedClientFromUsername(settlementFile.owner);
                 if (toGet == null) return;
                 else
                 {
                     string[] contents = new string[] { Serializer.SerializeToString(visitDetailsJSON) };
                     Packet packet = new Packet("VisitPacket", contents);
-                    Network.Network.SendData(toGet, packet);
+                    toGet.SendData(packet);
                 }
             }
         }
 
-        private static void SendVisitActions(Client client, VisitDetailsJSON visitDetailsJSON)
+        private void SendVisitActions(Client client, VisitDetailsJSON visitDetailsJSON)
         {
             if (client.inVisitWith == null)
             {
                 visitDetailsJSON.visitStepMode = ((int)VisitStepMode.Stop).ToString();
                 string[] contents = new string[] { Serializer.SerializeToString(visitDetailsJSON) };
                 Packet packet = new Packet("VisitPacket", contents);
-                Network.Network.SendData(client, packet);
+                client.SendData(packet);
             }
 
             else
             {
                 string[] contents = new string[] { Serializer.SerializeToString(visitDetailsJSON) };
                 Packet packet = new Packet("VisitPacket", contents);
-                Network.Network.SendData(client.inVisitWith, packet);
+                client.inVisitWith.SendData(packet);
             }
         }
 
-        public static void SendVisitStop(Client client, VisitDetailsJSON visitDetailsJSON)
+        public void SendVisitStop(Client client, VisitDetailsJSON visitDetailsJSON)
         {
             string[] contents = new string[] { Serializer.SerializeToString(visitDetailsJSON) };
             Packet packet = new Packet("VisitPacket", contents);
 
-            if (client.inVisitWith == null) Network.Network.SendData(client, packet);
+            if (client.inVisitWith == null) client.SendData(packet);
             else
             {
-                Network.Network.SendData(client, packet);
-                Network.Network.SendData(client.inVisitWith, packet);
+                client.SendData(packet);
+                client.inVisitWith.SendData(packet);
 
                 client.inVisitWith.inVisitWith = null;
                 client.inVisitWith = null;

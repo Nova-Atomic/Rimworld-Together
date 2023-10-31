@@ -1,67 +1,95 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using Microsoft.Extensions.Logging;
 using RimworldTogether.GameServer.Core;
 using RimworldTogether.GameServer.Managers;
+using RimworldTogether.GameServer.Managers.Actions;
 using RimworldTogether.GameServer.Misc;
 using RimworldTogether.Shared.Misc;
 using RimworldTogether.Shared.Network;
 
 namespace RimworldTogether.GameServer.Network
 {
-    public static class Network
+    public class Network
     {
-        public static List<Client> connectedClients = new List<Client>();
-        private static TcpListener server;
-        private static IPAddress localAddress = IPAddress.Parse(Program.serverConfig.IP);
-        private static int port = int.Parse(Program.serverConfig.Port);
+        private TcpListener server;
+        private IPAddress localAddress = IPAddress.Parse(Program.serverConfig.IP);
+        private int port = int.Parse(Program.serverConfig.Port);
 
-        public static bool isServerOpen;
-        public static bool usingNewNetworking;
+        public bool isServerOpen;
+        public bool usingNewNetworking;
+        private readonly ILogger<Network> logger;
+        private readonly ClientManager clientManager;
+        private readonly SiteManager siteManager;
+        private readonly UserManager userManager;
+        private readonly PacketHandler packetHandler;
+        private readonly UserManager_Joinings userManager_Joinings;
+        private readonly ResponseShortcutManager responseShortcutManager;
 
-        public static void ReadyServer()
+        public Network(ILogger<Network> logger,
+            ClientManager clientManager,
+            SiteManager siteManager,
+            UserManager userManager,
+            PacketHandler packetHandler,
+            UserManager_Joinings userManager_Joinings,
+            ResponseShortcutManager responseShortcutManager)
+        {
+            this.logger = logger;
+            this.clientManager = clientManager;
+            this.siteManager = siteManager;
+            this.userManager = userManager;
+            this.packetHandler = packetHandler;
+            this.userManager_Joinings = userManager_Joinings;
+            this.responseShortcutManager = responseShortcutManager;
+        }
+
+        public async Task ReadyServer(CancellationToken cancellationToken = default)
         {
             server = new TcpListener(localAddress, port);
             server.Start();
             isServerOpen = true;
 
-            Threader.GenerateServerThread(Threader.ServerMode.Heartbeat, Program.serverCancelationToken);
-            Threader.GenerateServerThread(Threader.ServerMode.Sites, Program.serverCancelationToken);
+            _ = HeartbeatClients(cancellationToken);
+            _ = siteManager.StartSiteTicker(cancellationToken);
 
-            Logger.WriteToConsole("Type 'help' to get a list of available commands");
-            Logger.WriteToConsole($"Listening for users at {localAddress}:{port}");
-            Logger.WriteToConsole("Server launched");
-            Titler.ChangeTitle();
+            logger.LogInformation($"Listening for users at {localAddress}:{port}");
+            logger.LogInformation("Server launched");
 
-            while (true) ListenForIncomingUsers();
+            Titler.ChangeTitle(clientManager.ClientCount, int.Parse(Program.serverConfig.MaxPlayers));
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await ListenForIncomingUsers(cancellationToken);
+            }
         }
 
-        private static void ListenForIncomingUsers()
+        private async Task ListenForIncomingUsers(CancellationToken cancellationToken = default)
         {
-            Client newServerClient = new Client(server.AcceptTcpClient());
+            var tcpClient = await server.AcceptTcpClientAsync(cancellationToken);
+
+            Client newServerClient = new Client(tcpClient);
 
             if (Program.isClosing) newServerClient.disconnectFlag = true;
             else
             {
-                if (connectedClients.ToArray().Count() >= int.Parse(Program.serverConfig.MaxPlayers))
+                if (clientManager.Clients.ToArray().Count() >= int.Parse(Program.serverConfig.MaxPlayers))
                 {
-                    UserManager_Joinings.SendLoginResponse(newServerClient, UserManager_Joinings.LoginResponse.ServerFull);
-                    Logger.WriteToConsole($"[Warning] > Server Full", Logger.LogMode.Warning);
+                    userManager_Joinings.SendLoginResponse(newServerClient, UserManager_Joinings.LoginResponse.ServerFull);
+                    logger.LogWarning($"[Warning] > Server Full");
                 }
 
                 else
                 {
-                    connectedClients.Add(newServerClient);
+                    clientManager.AddClient(newServerClient);
+                    Titler.ChangeTitle(clientManager.ClientCount, int.Parse(Program.serverConfig.MaxPlayers));
 
-                    Titler.ChangeTitle();
-
-                    Threader.GenerateClientThread(Threader.ClientMode.Start, newServerClient);
-
-                    Logger.WriteToConsole($"[Connect] > {newServerClient.username} | {newServerClient.SavedIP}");
+                    newServerClient.DataTask = ListenToClient(newServerClient, cancellationToken);
+                    logger.LogInformation($"[Connect] > {newServerClient.username} | {newServerClient.SavedIP}");
                 }
             }
         }
 
-        public static void ListenToClient(Client client)
+        private async Task ListenToClient(Client client, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -70,57 +98,40 @@ namespace RimworldTogether.GameServer.Network
                     string data = client.streamReader.ReadLine();
                     Packet receivedPacket = Serializer.SerializeToPacket(data);
 
-                    try { PacketHandler.HandlePacket(client, receivedPacket); }
-                    catch { ResponseShortcutManager.SendIllegalPacket(client, true); }
+                    try { packetHandler.HandlePacket(client, receivedPacket); }
+                    catch { responseShortcutManager.SendIllegalPacket(client, true); }
                 }
             }
             catch { client.disconnectFlag = true; }
         }
 
-        public static void SendData(Client client, Packet packet)
-        {
-            while (client.isBusy) Thread.Sleep(100);
-
-            try
-            {
-                client.isBusy = true;
-
-                client.streamWriter.WriteLine(Serializer.SerializeToString(packet));
-                client.streamWriter.Flush();
-
-                client.isBusy = false;
-            }
-            catch { client.disconnectFlag = true; }
-        }
-
-        public static void KickClient(Client client)
+        public void KickClient(Client client)
         {
             try
             {
-                connectedClients.Remove(client);
+                clientManager.RemoveClient(client);
                 client.tcp.Dispose();
 
-                UserManager.SendPlayerRecount();
+                userManager.SendPlayerRecount();
 
-                Titler.ChangeTitle();
+                Titler.ChangeTitle(clientManager.ClientCount, int.Parse(Program.serverConfig.MaxPlayers));
 
-                Logger.WriteToConsole($"[Disconnect] > {client.username} | {client.SavedIP}");
+                logger.LogInformation($"[Disconnect] > {client.username} | {client.SavedIP}");
             }
 
             catch
             {
-                Logger.WriteToConsole($"Error disconnecting user {client.username}, this will cause memory overhead", Logger.LogMode.Warning);
+                logger.LogWarning($"Error disconnecting user {client.username}, this will cause memory overhead");
             }
         }
 
-        public static void HearbeatClients()
+        private async Task HeartbeatClients(CancellationToken cancellationToken = default)
         {
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                Thread.Sleep(100);
+                await Task.Delay(100, cancellationToken);
 
-                Client[] actualClients = connectedClients.ToArray();
-
+                Client[] actualClients = clientManager.Clients.ToArray();
                 foreach (Client client in actualClients)
                 {
                     try
@@ -135,7 +146,7 @@ namespace RimworldTogether.GameServer.Network
             }
         }
 
-        private static bool CheckIfConnected(Client client)
+        private bool CheckIfConnected(Client client)
         {
             if (!client.tcp.Connected) return false;
             else

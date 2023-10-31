@@ -1,6 +1,6 @@
-﻿using RimworldTogether.GameServer.Core;
+﻿using Microsoft.Extensions.Logging;
+using RimworldTogether.GameServer.Core;
 using RimworldTogether.GameServer.Files;
-using RimworldTogether.GameServer.Misc;
 using RimworldTogether.GameServer.Network;
 using RimworldTogether.Shared.JSON;
 using RimworldTogether.Shared.Misc;
@@ -8,19 +8,33 @@ using RimworldTogether.Shared.Network;
 
 namespace RimworldTogether.GameServer.Managers.Actions
 {
-    public static class SiteManager
+    public class SiteManager
     {
+        private readonly ILogger<SiteManager> logger;
+        private readonly ClientManager clientManager;
+        private readonly ResponseShortcutManager responseShortcutManager;
+
         public enum SiteStepMode { Accept, Build, Destroy, Info, Deposit, Retrieve, Reward }
 
         private enum PersonalSiteType { Farmland, Quarry, Sawmill, Storage }
 
         private enum FactionSiteType { Bank, Silo }
 
-        public static void ParseSitePacket(Client client, Packet packet)
+        public SiteManager(
+            ILogger<SiteManager> logger,
+            ClientManager clientManager,
+            ResponseShortcutManager responseShortcutManager)
+        {
+            this.logger = logger;
+            this.clientManager = clientManager;
+            this.responseShortcutManager = responseShortcutManager;
+        }
+
+        public void ParseSitePacket(Client client, Packet packet)
         {
             SiteDetailsJSON siteDetailsJSON = Serializer.SerializeFromString<SiteDetailsJSON>(packet.contents[0]);
 
-            switch(int.Parse(siteDetailsJSON.siteStep))
+            switch (int.Parse(siteDetailsJSON.siteStep))
             {
                 case (int)SiteStepMode.Build:
                     AddNewSite(client, siteDetailsJSON);
@@ -56,7 +70,7 @@ namespace RimworldTogether.GameServer.Managers.Actions
             return false;
         }
 
-        public static void ConfirmNewSite(Client client, SiteFile siteFile)
+        public void ConfirmNewSite(Client client, SiteFile siteFile)
         {
             SaveSite(siteFile);
 
@@ -67,21 +81,21 @@ namespace RimworldTogether.GameServer.Managers.Actions
             siteDetailsJSON.type = siteFile.type;
             siteDetailsJSON.isFromFaction = siteFile.isFromFaction;
 
-            foreach (Client cClient in Network.Network.connectedClients.ToArray())
+            foreach (Client cClient in clientManager.Clients.ToArray())
             {
                 siteDetailsJSON.likelihood = LikelihoodManager.GetSiteLikelihood(cClient, siteFile).ToString();
                 string[] contents = new string[] { Serializer.SerializeToString(siteDetailsJSON) };
                 Packet packet = new Packet("SitePacket", contents);
 
-                Network.Network.SendData(cClient, packet);
+                cClient.SendData(packet);
             }
 
             siteDetailsJSON.siteStep = ((int)SiteStepMode.Accept).ToString();
             string[] contents2 = new string[] { Serializer.SerializeToString(siteDetailsJSON) };
             Packet rPacket = new Packet("SitePacket", contents2);
-            Network.Network.SendData(client, rPacket);
+            client.SendData(rPacket);
 
-            Logger.WriteToConsole($"[Created site] > {client.username}", Logger.LogMode.Warning);
+            logger.LogWarning($"[Created site] > {client.username}");
         }
 
         public static void SaveSite(SiteFile siteFile)
@@ -131,10 +145,10 @@ namespace RimworldTogether.GameServer.Managers.Actions
             return null;
         }
 
-        private static void AddNewSite(Client client, SiteDetailsJSON siteDetailsJSON)
+        private void AddNewSite(Client client, SiteDetailsJSON siteDetailsJSON)
         {
-            if (SettlementManager.CheckIfTileIsInUse(siteDetailsJSON.tile)) ResponseShortcutManager.SendIllegalPacket(client);
-            else if (CheckIfTileIsInUse(siteDetailsJSON.tile)) ResponseShortcutManager.SendIllegalPacket(client);
+            if (SettlementManager.CheckIfTileIsInUse(siteDetailsJSON.tile)) responseShortcutManager.SendIllegalPacket(client);
+            else if (CheckIfTileIsInUse(siteDetailsJSON.tile)) responseShortcutManager.SendIllegalPacket(client);
             else
             {
                 SiteFile siteFile = null;
@@ -145,7 +159,7 @@ namespace RimworldTogether.GameServer.Managers.Actions
 
                     if (FactionManager.GetMemberRank(factionFile, client.username) == FactionManager.FactionRanks.Member)
                     {
-                        ResponseShortcutManager.SendNoPowerPacket(client, new FactionManifestJSON());
+                        responseShortcutManager.SendNoPowerPacket(client, new FactionManifestJSON());
                         return;
                     }
 
@@ -173,32 +187,32 @@ namespace RimworldTogether.GameServer.Managers.Actions
             }
         }
 
-        private static void DestroySite(Client client, SiteDetailsJSON siteDetailsJSON)
+        private void DestroySite(Client client, SiteDetailsJSON siteDetailsJSON)
         {
             SiteFile siteFile = GetSiteFileFromTile(siteDetailsJSON.tile);
 
             if (siteFile.isFromFaction)
             {
-                if (siteFile.factionName != client.factionName) ResponseShortcutManager.SendIllegalPacket(client);
+                if (siteFile.factionName != client.factionName) responseShortcutManager.SendIllegalPacket(client);
                 else
                 {
                     FactionFile factionFile = FactionManager.GetFactionFromClient(client);
 
-                    if (FactionManager.GetMemberRank(factionFile, client.username) != 
+                    if (FactionManager.GetMemberRank(factionFile, client.username) !=
                         FactionManager.FactionRanks.Member) DestroySiteFromFile(siteFile);
 
-                    else ResponseShortcutManager.SendNoPowerPacket(client, new FactionManifestJSON());
+                    else responseShortcutManager.SendNoPowerPacket(client, new FactionManifestJSON());
                 }
             }
 
             else
             {
-                if (siteFile.owner != client.username) ResponseShortcutManager.SendIllegalPacket(client);
+                if (siteFile.owner != client.username) responseShortcutManager.SendIllegalPacket(client);
                 else DestroySiteFromFile(siteFile);
             }
         }
 
-        public static void DestroySiteFromFile(SiteFile siteFile)
+        public void DestroySiteFromFile(SiteFile siteFile)
         {
             SiteDetailsJSON siteDetailsJSON = new SiteDetailsJSON();
             siteDetailsJSON.siteStep = ((int)SiteStepMode.Destroy).ToString();
@@ -206,13 +220,13 @@ namespace RimworldTogether.GameServer.Managers.Actions
 
             string[] contents = new string[] { Serializer.SerializeToString(siteDetailsJSON) };
             Packet packet = new Packet("SitePacket", contents);
-            foreach (Client client in Network.Network.connectedClients.ToArray()) Network.Network.SendData(client, packet);
+            foreach (Client client in clientManager.Clients.ToArray()) client.SendData(packet);
 
             File.Delete(Path.Combine(Program.sitesPath, siteFile.tile + ".json"));
-            Logger.WriteToConsole($"[Destroyed site] > {siteFile.tile}", Logger.LogMode.Warning);
+            logger.LogWarning($"[Destroyed site] > {siteFile.tile}");
         }
 
-        private static void GetSiteInfo(Client client, SiteDetailsJSON siteDetailsJSON)
+        private void GetSiteInfo(Client client, SiteDetailsJSON siteDetailsJSON)
         {
             SiteFile siteFile = GetSiteFileFromTile(siteDetailsJSON.tile);
 
@@ -222,17 +236,17 @@ namespace RimworldTogether.GameServer.Managers.Actions
 
             string[] contents = new string[] { Serializer.SerializeToString(siteDetailsJSON) };
             Packet packet = new Packet("SitePacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
         }
 
-        private static void DepositWorkerToSite(Client client, SiteDetailsJSON siteDetailsJSON)
+        private void DepositWorkerToSite(Client client, SiteDetailsJSON siteDetailsJSON)
         {
             SiteFile siteFile = GetSiteFileFromTile(siteDetailsJSON.tile);
 
             if (siteFile.owner != client.username &&
                 FactionManager.GetFactionFromClient(client).factionMembers.Contains(siteFile.owner))
             {
-                ResponseShortcutManager.SendIllegalPacket(client);
+                responseShortcutManager.SendIllegalPacket(client);
             }
 
             else
@@ -242,14 +256,14 @@ namespace RimworldTogether.GameServer.Managers.Actions
             }
         }
 
-        private static void RetrieveWorkerFromSite(Client client, SiteDetailsJSON siteDetailsJSON)
+        private void RetrieveWorkerFromSite(Client client, SiteDetailsJSON siteDetailsJSON)
         {
             SiteFile siteFile = GetSiteFileFromTile(siteDetailsJSON.tile);
 
             if (siteFile.owner != client.username &&
                 FactionManager.GetFactionFromClient(client).factionMembers.Contains(siteFile.owner))
             {
-                ResponseShortcutManager.SendIllegalPacket(client);
+                responseShortcutManager.SendIllegalPacket(client);
             }
 
             else
@@ -261,28 +275,27 @@ namespace RimworldTogether.GameServer.Managers.Actions
 
                 string[] contents = new string[] { Serializer.SerializeToString(siteDetailsJSON) };
                 Packet packet = new Packet("SitePacket", contents);
-                Network.Network.SendData(client, packet);
+                client.SendData(packet);
             }
         }
 
-        public static void StartSiteTicker()
+        public async Task StartSiteTicker(CancellationToken cancellationToken = default)
         {
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                Thread.Sleep(1800000);
-
+                await Task.Delay(1800000, cancellationToken);
                 SiteRewardTick();
             }
         }
 
-        private static void SiteRewardTick()
+        private void SiteRewardTick()
         {
             SiteFile[] sites = GetAllSites();
 
             SiteDetailsJSON siteDetailsJSON = new SiteDetailsJSON();
             siteDetailsJSON.siteStep = ((int)SiteStepMode.Reward).ToString();
 
-            foreach (Client client in Network.Network.connectedClients.ToArray())
+            foreach (Client client in clientManager.Clients.ToArray())
             {
                 siteDetailsJSON.sitesWithRewards.Clear();
 
@@ -309,11 +322,11 @@ namespace RimworldTogether.GameServer.Managers.Actions
                 {
                     string[] contents = new string[] { Serializer.SerializeToString(siteDetailsJSON) };
                     Packet packet = new Packet("SitePacket", contents);
-                    Network.Network.SendData(client, packet);
+                    client.SendData(packet);
                 }
             }
 
-            Logger.WriteToConsole($"[Site tick]");
+            logger.LogInformation($"[Site tick]");
         }
     }
 }

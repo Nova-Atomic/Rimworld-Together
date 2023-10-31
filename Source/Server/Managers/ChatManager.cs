@@ -1,6 +1,6 @@
-﻿using RimworldTogether.GameServer.Commands;
+﻿using Microsoft.Extensions.Logging;
+using RimworldTogether.GameServer.Commands;
 using RimworldTogether.GameServer.Managers.Actions;
-using RimworldTogether.GameServer.Misc;
 using RimworldTogether.GameServer.Network;
 using RimworldTogether.Shared.JSON;
 using RimworldTogether.Shared.JSON.Actions;
@@ -9,7 +9,7 @@ using RimworldTogether.Shared.Network;
 
 namespace RimworldTogether.GameServer.Managers
 {
-    public static class ChatManager
+    public class ChatManager
     {
         public enum UserColor { Normal, Admin, Console }
 
@@ -17,21 +17,34 @@ namespace RimworldTogether.GameServer.Managers
 
         public static string[] defaultJoinMessages = new string[]
         {
-            "Welcome to the global chat!", "Please be considerate with others and have fun!", "Use '/help' to check available commands"
+        "Welcome to the global chat!", "Please be considerate with others and have fun!", "Use '/help' to check available commands"
         };
+        private readonly ILogger<ChatManager> logger;
+        private readonly ClientManager clientManager;
+        private readonly VisitManager visitManager;
 
-        public static void ParseClientMessages(Client client, Packet packet)
+        public ChatManager(
+            ILogger<ChatManager> logger,
+            ClientManager clientManager,
+            VisitManager visitManager)
+        {
+            this.logger = logger;
+            this.clientManager = clientManager;
+            this.visitManager = visitManager;
+        }
+
+        public void ParseClientMessages(Client client, Packet packet)
         {
             ChatMessagesJSON chatMessagesJSON = Serializer.SerializeFromString<ChatMessagesJSON>(packet.contents[0]);
-            
-            for(int i = 0; i < chatMessagesJSON.messages.Count(); i++)
+
+            for (int i = 0; i < chatMessagesJSON.messages.Count(); i++)
             {
                 if (chatMessagesJSON.messages[i].StartsWith("/")) ExecuteCommand(client, packet);
                 else BroadcastClientMessages(client, packet);
             }
         }
 
-        public static void ExecuteCommand(Client client, Packet packet)
+        public void ExecuteCommand(Client client, Packet packet)
         {
             ChatMessagesJSON chatMessagesJSON = Serializer.SerializeFromString<ChatMessagesJSON>(packet.contents[0]);
 
@@ -39,18 +52,16 @@ namespace RimworldTogether.GameServer.Managers
             if (toFind == null) SendMessagesToClient(client, new string[] { "Command was not found" });
             else
             {
-                ChatCommandManager.invoker = client;
-
-                toFind.commandAction.Invoke();
+                toFind.commandAction.Invoke(this, client);
             }
 
-            Logger.WriteToConsole($"[Chat command] > {client.username} > {chatMessagesJSON.messages[0]}");
+            logger.LogInformation($"[Chat command] > {client.username} > {chatMessagesJSON.messages[0]}");
         }
 
-        public static void BroadcastClientMessages(Client client, Packet packet)
+        public void BroadcastClientMessages(Client client, Packet packet)
         {
             ChatMessagesJSON chatMessagesJSON = Serializer.SerializeFromString<ChatMessagesJSON>(packet.contents[0]);
-            for(int i = 0; i < chatMessagesJSON.messages.Count(); i++)
+            for (int i = 0; i < chatMessagesJSON.messages.Count(); i++)
             {
                 if (client.isAdmin)
                 {
@@ -67,12 +78,12 @@ namespace RimworldTogether.GameServer.Managers
 
             string[] contents = new string[] { Serializer.SerializeToString(chatMessagesJSON) };
             Packet rPacket = new Packet("ChatPacket", contents);
-            foreach (Client cClient in Network.Network.connectedClients.ToArray()) Network.Network.SendData(cClient, rPacket);
+            foreach (Client cClient in clientManager.Clients.ToArray()) cClient.SendData(rPacket);
 
-            Logger.WriteToConsole($"[Chat] > {client.username} > {chatMessagesJSON.messages[0]}");
+            logger.LogInformation($"[Chat] > {client.username} > {chatMessagesJSON.messages[0]}");
         }
 
-        public static void BroadcastServerMessages(string messageToSend)
+        public void BroadcastServerMessages(string messageToSend)
         {
             ChatMessagesJSON chatMessagesJSON = new ChatMessagesJSON();
             chatMessagesJSON.usernames.Add("CONSOLE");
@@ -83,18 +94,18 @@ namespace RimworldTogether.GameServer.Managers
             string[] contents = new string[] { Serializer.SerializeToString(chatMessagesJSON) };
             Packet packet = new Packet("ChatPacket", contents);
 
-            foreach (Client client in Network.Network.connectedClients.ToArray())
+            foreach (Client client in clientManager.Clients.ToArray())
             {
-                Network.Network.SendData(client, packet);
+                client.SendData(packet);
             }
 
-            Logger.WriteToConsole($"[Chat] > {"CONSOLE"} > {"127.0.0.1"} > {chatMessagesJSON.messages[0]}");
+            logger.LogInformation($"[Chat] > {"CONSOLE"} > {"127.0.0.1"} > {chatMessagesJSON.messages[0]}");
         }
 
-        public static void SendMessagesToClient(Client client, string[] messagesToSend)
+        public void SendMessagesToClient(Client client, string[] messagesToSend)
         {
             ChatMessagesJSON chatMessagesJSON = new ChatMessagesJSON();
-            for(int i = 0; i < messagesToSend.Count(); i++)
+            for (int i = 0; i < messagesToSend.Count(); i++)
             {
                 chatMessagesJSON.usernames.Add("CONSOLE");
                 chatMessagesJSON.messages.Add(messagesToSend[i]);
@@ -104,64 +115,65 @@ namespace RimworldTogether.GameServer.Managers
 
             string[] contents = new string[] { Serializer.SerializeToString(chatMessagesJSON) };
             Packet packet = new Packet("ChatPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
+        }
+
+
+        public void ChatHelpCommandAction(Client invoker)
+        {
+            List<string> messagesToSend = new List<string>();
+            messagesToSend.Add("List of available commands: ");
+            foreach (ChatCommand command in ChatCommandManager.chatCommands) messagesToSend.Add($"{command.prefix} - {command.description}");
+            SendMessagesToClient(invoker, messagesToSend.ToArray());
+        }
+
+        public void ChatPingCommandAction(Client invoker)
+        {
+            List<string> messagesToSend = new List<string>();
+            messagesToSend.Add("Pong!");
+            SendMessagesToClient(invoker, messagesToSend.ToArray());
+        }
+
+        public void ChatDisconnectCommandAction(Client invoker)
+        {
+            invoker.disconnectFlag = true;
+        }
+
+        public void ChatStopVisitCommandAction(Client invoker)
+        {
+            VisitDetailsJSON visitDetailsJSON = new VisitDetailsJSON();
+            visitDetailsJSON.visitStepMode = ((int)VisitManager.VisitStepMode.Stop).ToString();
+
+            visitManager.SendVisitStop(invoker, visitDetailsJSON);
         }
     }
 
-    public static class ChatCommandManager
+    public class ChatCommandManager
     {
         public static Client invoker;
 
         private static ChatCommand helpCommand = new ChatCommand("/help", 0,
             "Shows a list of all available commands",
-            ChatHelpCommandAction);
+            (n, c) => n.ChatHelpCommandAction(c));
 
         private static ChatCommand pingCommand = new ChatCommand("/ping", 0,
             "Checks if the connection to the server is working",
-            ChatPingCommandAction);
+            (n, c) => n.ChatPingCommandAction(c));
 
         private static ChatCommand disconnectCommand = new ChatCommand("/dc", 0,
             "Forcefully disconnects you from the server",
-            ChatDisconnectCommandAction);
+            (n, c) => n.ChatDisconnectCommandAction(c));
 
         private static ChatCommand stopVisitCommand = new ChatCommand("/sv", 0,
             "Forcefully disconnects you from a visit",
-            ChatStopVisitCommandAction);
+            (n, c) => n.ChatStopVisitCommandAction(c));
 
         public static ChatCommand[] chatCommands = new ChatCommand[]
         {
-            helpCommand,
-            pingCommand,
-            disconnectCommand,
-            stopVisitCommand
+        helpCommand,
+        pingCommand,
+        disconnectCommand,
+        stopVisitCommand
         };
-
-        private static void ChatHelpCommandAction()
-        {
-            List<string> messagesToSend = new List<string>();
-            messagesToSend.Add("List of available commands: ");
-            foreach (ChatCommand command in chatCommands) messagesToSend.Add($"{command.prefix} - {command.description}");
-            ChatManager.SendMessagesToClient(invoker, messagesToSend.ToArray());
-        }
-
-        private static void ChatPingCommandAction()
-        {
-            List<string> messagesToSend = new List<string>();
-            messagesToSend.Add("Pong!");
-            ChatManager.SendMessagesToClient(invoker, messagesToSend.ToArray());
-        }
-
-        private static void ChatDisconnectCommandAction()
-        {
-            invoker.disconnectFlag = true;
-        }
-
-        private static void ChatStopVisitCommandAction()
-        {
-            VisitDetailsJSON visitDetailsJSON = new VisitDetailsJSON();
-            visitDetailsJSON.visitStepMode = ((int)VisitManager.VisitStepMode.Stop).ToString();
-
-            VisitManager.SendVisitStop(invoker, visitDetailsJSON);
-        }
     }
 }

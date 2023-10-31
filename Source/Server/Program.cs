@@ -1,12 +1,21 @@
 ﻿using System.Globalization;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using RimworldTogether.GameServer.Files;
 using RimworldTogether.GameServer.Managers;
+using RimworldTogether.GameServer.Managers.Actions;
 using RimworldTogether.GameServer.Misc;
+using RimworldTogether.GameServer.Network;
+using RimworldTogether.GameServer.Users;
 using RimworldTogether.Shared.Misc;
+using Serilog;
+
+using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace RimworldTogether.GameServer.Core
 {
-    public static class Program
+    public static partial class Program
     {
         public static string mainPath;
         public static string corePath;
@@ -23,10 +32,6 @@ namespace RimworldTogether.GameServer.Core
         public static string optionalModsPath;
         public static string forbiddenModsPath;
 
-        public static List<string> loadedRequiredMods = new List<string>();
-        public static List<string> loadedOptionalMods = new List<string>();
-        public static List<string> loadedForbiddenMods = new List<string>();
-
         public static ServerConfigFile serverConfig;
         public static ServerValuesFile serverValues;
         public static WorldValuesFile worldValues;
@@ -39,57 +44,90 @@ namespace RimworldTogether.GameServer.Core
         public static string serverVersion = "1.0.9";
 
         public static bool isClosing;
-        public static CancellationToken serverCancelationToken = new();
 
-        public static void Main()
+        public static async Task Main(string[] args)
         {
-            try
-            {
-                QuickEdit quickEdit = new QuickEdit();
-                quickEdit.DisableQuickEdit();
-            }
-            catch { };
+            QuickEdit.DisableQuickEdit();
 
-            Console.ForegroundColor = ConsoleColor.White;
+            var builder = Host.CreateApplicationBuilder(args);
+            builder.Services.AddSingleton<ClientManager>();
+            builder.Services.AddSingleton<Network.Network>();
+            builder.Services.AddSingleton<CommandManager>();
+            builder.Services.AddSingleton<ResponseShortcutManager>();
+            builder.Services.AddSingleton<SettlementManager>();
+            builder.Services.AddSingleton<SiteManager>();
+            builder.Services.AddSingleton<UserManager_Joinings>();
+            builder.Services.AddSingleton<UserManager>();
+            builder.Services.AddSingleton<SaveManager>();
+            builder.Services.AddSingleton<ModManager>();
+            builder.Services.AddSingleton<EventManager>();
+            builder.Services.AddSingleton<LikelihoodManager>();
+            builder.Services.AddSingleton<FactionManager>();
+            builder.Services.AddSingleton<VisitManager>();
+            builder.Services.AddSingleton<ChatManager>();
+            builder.Services.AddSingleton<SpyManager>();
+            builder.Services.AddSingleton<ServerOverallManager>();
+            builder.Services.AddSingleton<WorldManager>();
+            builder.Services.AddSingleton<UserLogin>();
+            builder.Services.AddSingleton<TransferManager>();
+            builder.Services.AddSingleton<OfflineVisitManager>();
+            builder.Services.AddSingleton<RaidManager>();
+            builder.Services.AddSingleton<CustomDifficultyManager>();
+            builder.Services.AddSingleton<UserRegister>();
+            builder.Services.AddSingleton<PacketHandler>();
+            builder.Services.AddSingleton<ServerCommandManager>();
+            builder.Services.AddSingleton<XmlParser>();
+            builder.Services.AddSingleton<CustomDifficultyManager>();
+            builder.Services.AddSingleton<WhitelistManager>();
 
-            LoadResources();
-            Threader.GenerateServerThread(Threader.ServerMode.Start, serverCancelationToken);
-            Threader.GenerateServerThread(Threader.ServerMode.Console, serverCancelationToken);
+            builder.Services.AddHostedService<ResourceStartupService>();
+            builder.Services.AddHostedService<NetworkHost>();
 
-            while (true) Thread.Sleep(1);
-        }
+            builder.Logging.AddSimpleConsole();
 
-        public static void LoadResources()
-        {
+            Log.Logger = new Serilog.LoggerConfiguration()
+                .Enrich.FromLogContext()
+                .WriteTo.RollingFile("logs/{Date}.txt")
+                .CreateLogger();
+
+            builder.Logging.AddSerilog(dispose: true);
+
             SetPaths();
-
-            Logger.WriteToConsole($"Loading all necessary resources", Logger.LogMode.Title);
-            Logger.WriteToConsole($"----------------------------------------", Logger.LogMode.Title);
-
-            SetCulture();
-            CustomDifficultyManager.LoadCustomDifficulty();
             LoadServerConfig();
-            LoadServerValues();
-            LoadEventValues();
-            LoadSiteValues();
-            WorldManager.LoadWorldFile();
-            LoadActionValues();
-            WhitelistManager.LoadServerWhitelist();
-            ModManager.LoadMods();
 
-            Titler.ChangeTitle();
-
-            Logger.WriteToConsole($"----------------------------------------", Logger.LogMode.Title);
+            var host = builder.Build();
+            host.Run();
         }
 
-        private static void SetCulture()
+        public static void LoadResources(ILogger logger, ModManager modManager, ClientManager clientManager, WorldManager worldManager, CustomDifficultyManager customDifficultyManager, WhitelistManager whitelistManager)
+        {
+            logger.LogInformation($"Loading all necessary resources");
+            logger.LogInformation($"----------------------------------------");
+
+            SetCulture(logger);
+            customDifficultyManager.LoadCustomDifficulty();
+            // LoadServerConfig();
+            LoadServerValues(logger);
+            LoadEventValues(logger);
+            LoadSiteValues(logger);
+            worldManager.LoadWorldFile();
+            LoadActionValues(logger);
+            whitelistManager.LoadServerWhitelist();
+            modManager.LoadMods();
+
+            Titler.ChangeTitle(clientManager.ClientCount, int.Parse(serverConfig.MaxPlayers));
+
+            logger.LogInformation($"----------------------------------------");
+        }
+
+        private static void SetCulture(ILogger logger)
         {
             CultureInfo.CurrentCulture = new CultureInfo("en-US", false);
             CultureInfo.CurrentUICulture = new CultureInfo("en-US", false);
             CultureInfo.DefaultThreadCurrentCulture = new CultureInfo("en-US", false);
             CultureInfo.DefaultThreadCurrentUICulture = new CultureInfo("en-US", false);
 
-            Logger.WriteToConsole($"Loaded server culture > [{CultureInfo.CurrentCulture}]");
+            logger.LogInformation($"Loaded server culture > [{CultureInfo.CurrentCulture}]");
         }
 
         private static void SetPaths()
@@ -135,10 +173,10 @@ namespace RimworldTogether.GameServer.Core
                 Serializer.SerializeToFile(path, serverConfig);
             }
 
-            Logger.WriteToConsole("Loaded server configs");
+            // TODO Logger.WriteToConsole("Loaded server configs");
         }
 
-        private static void LoadServerValues()
+        private static void LoadServerValues(ILogger logger)
         {
             string path = Path.Combine(corePath, "ServerValues.json");
 
@@ -149,10 +187,10 @@ namespace RimworldTogether.GameServer.Core
                 Serializer.SerializeToFile(path, serverValues);
             }
 
-            Logger.WriteToConsole("Loaded server values");
+            logger.LogInformation("Loaded server values");
         }
 
-        private static void LoadEventValues()
+        private static void LoadEventValues(ILogger logger)
         {
             string path = Path.Combine(corePath, "EventValues.json");
 
@@ -163,10 +201,10 @@ namespace RimworldTogether.GameServer.Core
                 Serializer.SerializeToFile(path, eventValues);
             }
 
-            Logger.WriteToConsole("Loaded event values");
+            logger.LogInformation("Loaded event values");
         }
 
-        private static void LoadSiteValues()
+        private static void LoadSiteValues(ILogger logger)
         {
             string path = Path.Combine(corePath, "SiteValues.json");
 
@@ -177,10 +215,10 @@ namespace RimworldTogether.GameServer.Core
                 Serializer.SerializeToFile(path, siteValues);
             }
 
-            Logger.WriteToConsole("Loaded site values");
+            logger.LogInformation("Loaded site values");
         }
 
-        private static void LoadActionValues()
+        private static void LoadActionValues(ILogger logger)
         {
             string path = Path.Combine(corePath, "ActionValues.json");
 
@@ -191,7 +229,7 @@ namespace RimworldTogether.GameServer.Core
                 Serializer.SerializeToFile(path, actionValues);
             }
 
-            Logger.WriteToConsole("Loaded action values");
+            logger.LogInformation("Loaded action values");
         }
     }
 }

@@ -1,6 +1,6 @@
-﻿using RimworldTogether.GameServer.Core;
+﻿using Microsoft.Extensions.Logging;
+using RimworldTogether.GameServer.Core;
 using RimworldTogether.GameServer.Files;
-using RimworldTogether.GameServer.Misc;
 using RimworldTogether.GameServer.Network;
 using RimworldTogether.Shared.JSON;
 using RimworldTogether.Shared.Misc;
@@ -8,15 +8,22 @@ using RimworldTogether.Shared.Network;
 
 namespace RimworldTogether.GameServer.Managers
 {
-    public static class WorldManager
+    public class WorldManager
     {
         public enum WorldStepMode { Required, Existing, Saved }
 
         private static string worldFileName = "WorldValues.json";
 
         private static string worldFilePath = Path.Combine(Program.corePath, worldFileName);
+        private readonly ILogger<WorldManager> logger;
 
-        public static void ParseWorldPacket(Client client, Packet packet)
+        public WorldManager(
+            ILogger<WorldManager> logger)
+        {
+            this.logger = logger;
+        }
+
+        public void ParseWorldPacket(Client client, Packet packet)
         {
             WorldDetailsJSON worldDetailsJSON = Serializer.SerializeFromString<WorldDetailsJSON>(packet.contents[0]);
 
@@ -38,7 +45,7 @@ namespace RimworldTogether.GameServer.Managers
 
         public static bool CheckIfWorldExists() { return File.Exists(worldFilePath); }
 
-        public static void SaveWorldPrefab(Client client, WorldDetailsJSON worldDetailsJSON)
+        public void SaveWorldPrefab(Client client, WorldDetailsJSON worldDetailsJSON)
         {
             WorldValuesFile worldValues = new WorldValuesFile();
             worldValues.SeedString = worldDetailsJSON.SeedString;
@@ -50,27 +57,27 @@ namespace RimworldTogether.GameServer.Managers
             worldValues.Factions = worldDetailsJSON.Factions;
 
             Serializer.SerializeToFile(worldFilePath, worldValues);
-            Logger.WriteToConsole($"[Save world] > {client.username}", Logger.LogMode.Title);
+            logger.LogInformation($"[Save world] > {client.username}");
 
             Program.worldValues = worldValues;
 
             worldDetailsJSON.worldStepMode = ((int)WorldStepMode.Saved).ToString();
             string[] contents = new string[] { Serializer.SerializeToString(worldDetailsJSON) };
             Packet packet = new Packet("WorldPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
         }
 
-        public static void RequireWorldFile(Client client)
+        public void RequireWorldFile(Client client)
         {
             WorldDetailsJSON worldDetailsJSON = new WorldDetailsJSON();
             worldDetailsJSON.worldStepMode = ((int)WorldStepMode.Required).ToString();
 
             string[] contents = new string[] { Serializer.SerializeToString(worldDetailsJSON) };
             Packet packet = new Packet("WorldPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
         }
 
-        public static void SendWorldFile(Client client)
+        public void SendWorldFile(Client client)
         {
             WorldValuesFile worldValues = Program.worldValues;
 
@@ -86,19 +93,19 @@ namespace RimworldTogether.GameServer.Managers
 
             string[] contents = new string[] { Serializer.SerializeToString(worldDetailsJSON) };
             Packet packet = new Packet("WorldPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
         }
 
-        public static void LoadWorldFile()
+        public void LoadWorldFile()
         {
             if (File.Exists(worldFilePath))
             {
                 Program.worldValues = Serializer.SerializeFromFile<WorldValuesFile>(worldFilePath);
 
-                Logger.WriteToConsole("Loaded world values");
+                logger.LogInformation("Loaded world values");
             }
 
-            else Logger.WriteToConsole("[Warning] > World is missing. Join server to create it", Logger.LogMode.Warning);   
+            else logger.LogWarning("[Warning] > World is missing. Join server to create it");
         }
     }
 }

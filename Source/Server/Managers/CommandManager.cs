@@ -1,5 +1,4 @@
 ﻿using RimworldTogether.GameServer.Managers.Actions;
-using RimworldTogether.GameServer.Misc;
 using RimworldTogether.GameServer.Network;
 using RimworldTogether.Shared.JSON;
 using RimworldTogether.Shared.JSON.Actions;
@@ -8,11 +7,18 @@ using RimworldTogether.Shared.Network;
 
 namespace RimworldTogether.GameServer.Managers
 {
-    public static class CommandManager
+    public class CommandManager
     {
+        private readonly ClientManager clientManager;
+
         public enum CommandType { Op, Deop, Ban, Disconnect, Quit, Broadcast, ForceSave }
 
-        public static void ParseCommand(Packet packet)
+        public CommandManager(ClientManager clientManager)
+        {
+            this.clientManager = clientManager;
+        }
+
+        public void ParseCommand(Packet packet)
         {
             CommandDetailsJSON commandDetailsJSON = Serializer.SerializeFromString<CommandDetailsJSON>(packet.contents[0]);
 
@@ -44,60 +50,60 @@ namespace RimworldTogether.GameServer.Managers
             }
         }
 
-        public static void SendOpCommand(Client client)
+        public void SendOpCommand(Client client)
         {
             CommandDetailsJSON commandDetailsJSON = new CommandDetailsJSON();
             commandDetailsJSON.commandType = ((int)CommandType.Op).ToString();
 
             string[] contents = new string[] { Serializer.SerializeToString(commandDetailsJSON) };
             Packet packet = new Packet("CommandPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
         }
 
-        public static void SendDeOpCommand(Client client)
+        public void SendDeOpCommand(Client client)
         {
             CommandDetailsJSON commandDetailsJSON = new CommandDetailsJSON();
             commandDetailsJSON.commandType = ((int)CommandType.Deop).ToString();
 
             string[] contents = new string[] { Serializer.SerializeToString(commandDetailsJSON) };
             Packet packet = new Packet("CommandPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
 
         }
 
-        public static void SendBanCommand(Client client)
+        public void SendBanCommand(Client client)
         {
             CommandDetailsJSON commandDetailsJSON = new CommandDetailsJSON();
             commandDetailsJSON.commandType = ((int)CommandType.Ban).ToString();
 
             string[] contents = new string[] { Serializer.SerializeToString(commandDetailsJSON) };
             Packet packet = new Packet("CommandPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
 
         }
 
-        public static void SendDisconnectCommand(Client client)
+        public void SendDisconnectCommand(Client client)
         {
             CommandDetailsJSON commandDetailsJSON = new CommandDetailsJSON();
             commandDetailsJSON.commandType = ((int)CommandType.Disconnect).ToString();
 
             string[] contents = new string[] { Serializer.SerializeToString(commandDetailsJSON) };
             Packet packet = new Packet("CommandPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
 
         }
 
-        public static void SendQuitCommand(Client client)
+        public void SendQuitCommand(Client client)
         {
             CommandDetailsJSON commandDetailsJSON = new CommandDetailsJSON();
             commandDetailsJSON.commandType = ((int)CommandType.Quit).ToString();
 
             string[] contents = new string[] { Serializer.SerializeToString(commandDetailsJSON) };
             Packet packet = new Packet("CommandPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
         }
 
-        public static void SendEventCommand(Client client, int eventID)
+        public void SendEventCommand(Client client, int eventID)
         {
             EventDetailsJSON eventDetailsJSON = new EventDetailsJSON();
             eventDetailsJSON.eventStepMode = ((int)EventManager.EventStepMode.Receive).ToString();
@@ -105,10 +111,10 @@ namespace RimworldTogether.GameServer.Managers
 
             string[] contents = new string[] { Serializer.SerializeToString(eventDetailsJSON) };
             Packet packet = new Packet("EventPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
         }
 
-        public static void SendBroadcastCommand(string str)
+        public void SendBroadcastCommand(string str)
         {
             CommandDetailsJSON commandDetailsJSON = new CommandDetailsJSON();
             commandDetailsJSON.commandType = ((int)CommandType.Broadcast).ToString();
@@ -116,20 +122,20 @@ namespace RimworldTogether.GameServer.Managers
 
             string[] contents = new string[] { Serializer.SerializeToString(commandDetailsJSON) };
             Packet packet = new Packet("CommandPacket", contents);
-            foreach (Client client in Network.Network.connectedClients.ToArray())
+            foreach (Client client in clientManager.Clients.ToArray())
             {
-                Network.Network.SendData(client, packet);
+                client.SendData(packet);
             }
         }
 
-        public static void SendForceSaveCommand(Client client)
+        public void SendForceSaveCommand(Client client)
         {
             CommandDetailsJSON commandDetailsJSON = new CommandDetailsJSON();
             commandDetailsJSON.commandType = ((int)CommandType.ForceSave).ToString();
 
             string[] contents = new string[] { Serializer.SerializeToString(commandDetailsJSON) };
             Packet packet = new Packet("CommandPacket", contents);
-            Network.Network.SendData(client, packet);
+            client.SendData(packet);
         }
     }
 }

@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Runtime.InteropServices;
 
 namespace RimworldTogether.GameServer.Misc
 {
-    public class QuickEdit
+    public static class QuickEdit
     {
         const uint ENABLE_QUICK_EDIT = 0x0040;
 
@@ -24,27 +18,31 @@ namespace RimworldTogether.GameServer.Misc
         [DllImport("kernel32.dll")]
         static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 
-        public bool DisableQuickEdit()
+        public static void DisableQuickEdit()
         {
-            IntPtr consoleHandle = GetStdHandle(STD_INPUT_HANDLE);
+            if (!OperatingSystem.IsWindows())
+                return;
 
-            uint consoleMode;
-            if (!GetConsoleMode(consoleHandle, out consoleMode))
+            try
             {
-                //Unable to get console mode.
-                return false;
+                IntPtr consoleHandle = GetStdHandle(STD_INPUT_HANDLE);
+
+                uint consoleMode;
+                if (!GetConsoleMode(consoleHandle, out consoleMode))
+                {
+                    //Unable to get console mode.
+                    return;
+                }
+
+                // Clear the quick edit bit in the mode flags
+                consoleMode &= ~ENABLE_QUICK_EDIT;
+
+                if (!SetConsoleMode(consoleHandle, consoleMode))
+                {
+                    //Unable to set console mode
+                }
             }
-
-            // Clear the quick edit bit in the mode flags
-            consoleMode &= ~ENABLE_QUICK_EDIT;
-
-            if (!SetConsoleMode(consoleHandle, consoleMode))
-            {
-                //Unable to set console mode
-                return false;
-            }
-
-            return true;
+            catch { }
         }
     }
 }
