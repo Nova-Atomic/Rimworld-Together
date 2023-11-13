@@ -2,7 +2,7 @@
 using RimworldTogether.GameServer.Files;
 using RimworldTogether.GameServer.Managers;
 using RimworldTogether.GameServer.Misc;
-using RimworldTogether.Shared.Misc;
+using RimworldTogether.Shared.Serializers;
 
 namespace RimworldTogether.GameServer.Core
 {
@@ -36,7 +36,7 @@ namespace RimworldTogether.GameServer.Core
         public static ActionValuesFile actionValues;
         public static WhitelistFile whitelist;
 
-        public static string serverVersion = "1.0.9";
+        public static string serverVersion = "1.1.0";
 
         public static bool isClosing;
         public static CancellationToken serverCancelationToken = new();

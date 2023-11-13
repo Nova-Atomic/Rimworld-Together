@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using RimworldTogether.GameClient.Dialogs;
+using RimworldTogether.GameClient.Managers;
 using RimworldTogether.GameClient.Managers.Actions;
-using RimworldTogether.GameClient.Misc;
 using RimworldTogether.GameClient.Values;
 using RimworldTogether.Shared.Network;
 using UnityEngine;
@@ -79,8 +79,8 @@ namespace RimworldTogether.GameClient.Core
                 {
                     DialogManager.PushNewDialog(new RT_Dialog_Wait("Waiting for request completion"));
 
-                    Packet packet = new Packet("ResetSavePacket");
-                    Network.Network.SendData(packet);
+                    Packet packet = Packet.CreatePacketFromJSON("ResetSavePacket");
+                    Network.Network.serverListener.SendData(packet);
                 };
 
                 RT_Dialog_YesNo d1 = new RT_Dialog_YesNo("Are you sure you want to reset your save?", r1, null);
@@ -108,7 +108,7 @@ namespace RimworldTogether.GameClient.Core
                     ClientValues.autosaveDays = tuple.Item2;
                     ClientValues.autosaveInternalTicks = Mathf.RoundToInt(tuple.Item2 * 60000f);
 
-                    Saver.SaveClientPreferences(ClientValues.autosaveDays.ToString());
+                    PreferenceManager.SaveClientPreferences(ClientValues.autosaveDays.ToString());
                 });
 
                 list.Add(item);

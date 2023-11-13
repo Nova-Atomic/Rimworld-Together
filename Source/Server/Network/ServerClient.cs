@@ -1,14 +1,21 @@
-﻿using System.Net;
+﻿using RimworldTogether.GameServer.Network.Listener;
+using Shared.Network;
+using System.Net;
 using System.Net.Sockets;
 
 namespace RimworldTogether.GameServer.Network
 {
-    public class Client
+    public class ServerClient
     {
         [NonSerialized] public TcpClient tcp;
         [NonSerialized] public NetworkStream networkStream;
         [NonSerialized] public StreamWriter streamWriter;
         [NonSerialized] public StreamReader streamReader;
+
+        [NonSerialized] public ClientListener clientListener;
+        [NonSerialized] public UploadManager uploadManager;
+        [NonSerialized] public DownloadManager downloadManager;
+
         [NonSerialized] public bool disconnectFlag;
 
         public string uid;
@@ -25,7 +32,7 @@ namespace RimworldTogether.GameServer.Network
 
         public bool isBanned;
 
-        [NonSerialized] public Client inVisitWith;
+        [NonSerialized] public ServerClient inVisitWith;
 
         [NonSerialized] public bool isBusy;
 
@@ -39,7 +46,7 @@ namespace RimworldTogether.GameServer.Network
 
         public string SavedIP { get; set; }
 
-        public Client(TcpClient tcp)
+        public ServerClient(TcpClient tcp)
         {
             if (tcp == null) return;
             else

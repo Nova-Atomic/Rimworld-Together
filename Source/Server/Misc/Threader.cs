@@ -1,6 +1,5 @@
 ﻿using RimworldTogether.GameServer.Managers;
 using RimworldTogether.GameServer.Managers.Actions;
-using RimworldTogether.GameServer.Network;
 
 namespace RimworldTogether.GameServer.Misc
 {
@@ -12,11 +11,6 @@ namespace RimworldTogether.GameServer.Misc
             Heartbeat,
             Sites,
             Console
-        }
-
-        public enum ClientMode
-        {
-            Start
         }
 
         public static Task GenerateServerThread(ServerMode mode, CancellationToken cancellationToken)
@@ -34,19 +28,6 @@ namespace RimworldTogether.GameServer.Misc
 
                 case ServerMode.Console:
                     return Task.Run(ServerCommandManager.ListenForServerCommands, cancellationToken);
-
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-
-        public static void GenerateClientThread(ClientMode mode, Client client)
-        {
-            switch (mode)
-            {
-                case ClientMode.Start:
-                    Task.Run(() => Network.Network.ListenToClient(client));
-                    break;
 
                 default:
                     throw new NotImplementedException();

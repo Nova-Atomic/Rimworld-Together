@@ -3,6 +3,7 @@ using RimWorld;
 using RimWorld.Planet;
 using RimworldTogether.GameClient.Managers.Actions;
 using RimworldTogether.Shared.JSON.Actions;
+using Verse;
 
 namespace RimworldTogether.GameClient.Values
 {
@@ -42,7 +43,7 @@ namespace RimworldTogether.GameClient.Values
         public static int autosaveDays = 1;
         public static float autosaveCurrentTicks;
         public static float autosaveInternalTicks = autosaveDays * 60000f;
-        public static string versionCode = "1.0.6";
+        public static string versionCode = "1.0.7";
 
         public static string[] serverBrowserContainer = new string[]
         {
@@ -51,6 +52,14 @@ namespace RimworldTogether.GameClient.Values
             "173.212.193.68|25556",
             "173.212.193.68|25557",
         };
+
+        public static void ForcePermadeath() { Current.Game.Info.permadeathMode = true; }
+
+        public static void ManageDevOptions()
+        {
+            if (ServerValues.isAdmin) return;
+            else Prefs.DevMode = false;
+        }
 
         public static void ToggleGenerateWorld(bool mode) { needsToGenerateWorld = mode; }
 

@@ -1,9 +1,10 @@
 ﻿using System.Globalization;
 using System.IO;
 using RimworldTogether.GameClient.Files;
+using RimworldTogether.GameClient.Managers;
 using RimworldTogether.GameClient.Misc;
 using RimworldTogether.GameClient.Values;
-using RimworldTogether.Shared.Misc;
+using RimworldTogether.Shared.Serializers;
 using UnityEngine;
 using Verse;
 
@@ -46,7 +47,7 @@ namespace RimworldTogether.GameClient.Core
                 CultureInfo.DefaultThreadCurrentUICulture = new CultureInfo("en-US", false);
             }
 
-            public static void PreparePaths()
+            private static void PreparePaths()
             {
                 mainPath = GenFilePaths.SaveDataFolderPath;
                 modPath = Path.Combine(mainPath, "Rimworld Together");
@@ -74,11 +75,11 @@ namespace RimworldTogether.GameClient.Core
                     ClientValues.autosaveDays = 3;
                     ClientValues.autosaveInternalTicks = Mathf.RoundToInt(ClientValues.autosaveDays * 60000f);
 
-                    Saver.SaveClientPreferences(ClientValues.autosaveDays.ToString());
+                    PreferenceManager.SaveClientPreferences(ClientValues.autosaveDays.ToString());
                 }
             }
 
-            public static void CreateUnityDispatcher()
+            private static void CreateUnityDispatcher()
             {
                 if (threadDispatcher == null)
                 {

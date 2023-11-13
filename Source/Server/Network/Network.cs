@@ -3,17 +3,17 @@ using System.Net.Sockets;
 using RimworldTogether.GameServer.Core;
 using RimworldTogether.GameServer.Managers;
 using RimworldTogether.GameServer.Misc;
-using RimworldTogether.Shared.Misc;
-using RimworldTogether.Shared.Network;
+using RimworldTogether.GameServer.Network.Listener;
+using Shared.Misc;
 
 namespace RimworldTogether.GameServer.Network
 {
     public static class Network
     {
-        public static List<Client> connectedClients = new List<Client>();
         private static TcpListener server;
         private static IPAddress localAddress = IPAddress.Parse(Program.serverConfig.IP);
         private static int port = int.Parse(Program.serverConfig.Port);
+        public static List<ServerClient> connectedClients = new List<ServerClient>();
 
         public static bool isServerOpen;
         public static bool usingNewNetworking;
@@ -37,14 +37,14 @@ namespace RimworldTogether.GameServer.Network
 
         private static void ListenForIncomingUsers()
         {
-            Client newServerClient = new Client(server.AcceptTcpClient());
+            ServerClient newServerClient = new ServerClient(server.AcceptTcpClient());
 
             if (Program.isClosing) newServerClient.disconnectFlag = true;
             else
             {
                 if (connectedClients.ToArray().Count() >= int.Parse(Program.serverConfig.MaxPlayers))
                 {
-                    UserManager_Joinings.SendLoginResponse(newServerClient, UserManager_Joinings.LoginResponse.ServerFull);
+                    UserManager_Joinings.SendLoginResponse(newServerClient, CommonEnumerators.LoginResponse.ServerFull);
                     Logger.WriteToConsole($"[Warning] > Server Full", Logger.LogMode.Warning);
                 }
 
@@ -52,48 +52,16 @@ namespace RimworldTogether.GameServer.Network
                 {
                     connectedClients.Add(newServerClient);
 
-                    Titler.ChangeTitle();
+                    newServerClient.clientListener = new ClientListener(newServerClient);
 
-                    Threader.GenerateClientThread(Threader.ClientMode.Start, newServerClient);
+                    Titler.ChangeTitle();
 
                     Logger.WriteToConsole($"[Connect] > {newServerClient.username} | {newServerClient.SavedIP}");
                 }
             }
         }
 
-        public static void ListenToClient(Client client)
-        {
-            try
-            {
-                while (!client.disconnectFlag)
-                {
-                    string data = client.streamReader.ReadLine();
-                    Packet receivedPacket = Serializer.SerializeToPacket(data);
-
-                    try { PacketHandler.HandlePacket(client, receivedPacket); }
-                    catch { ResponseShortcutManager.SendIllegalPacket(client, true); }
-                }
-            }
-            catch { client.disconnectFlag = true; }
-        }
-
-        public static void SendData(Client client, Packet packet)
-        {
-            while (client.isBusy) Thread.Sleep(100);
-
-            try
-            {
-                client.isBusy = true;
-
-                client.streamWriter.WriteLine(Serializer.SerializeToString(packet));
-                client.streamWriter.Flush();
-
-                client.isBusy = false;
-            }
-            catch { client.disconnectFlag = true; }
-        }
-
-        public static void KickClient(Client client)
+        public static void KickClient(ServerClient client)
         {
             try
             {
@@ -119,9 +87,9 @@ namespace RimworldTogether.GameServer.Network
             {
                 Thread.Sleep(100);
 
-                Client[] actualClients = connectedClients.ToArray();
+                ServerClient[] actualClients = connectedClients.ToArray();
 
-                foreach (Client client in actualClients)
+                foreach (ServerClient client in actualClients)
                 {
                     try
                     {
@@ -135,7 +103,7 @@ namespace RimworldTogether.GameServer.Network
             }
         }
 
-        private static bool CheckIfConnected(Client client)
+        private static bool CheckIfConnected(ServerClient client)
         {
             if (!client.tcp.Connected) return false;
             else
