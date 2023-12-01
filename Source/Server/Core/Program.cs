@@ -23,10 +23,6 @@ namespace RimworldTogether.GameServer.Core
         public static string optionalModsPath;
         public static string forbiddenModsPath;
 
-        public static List<string> loadedRequiredMods = new List<string>();
-        public static List<string> loadedOptionalMods = new List<string>();
-        public static List<string> loadedForbiddenMods = new List<string>();
-
         public static ServerConfigFile serverConfig;
         public static ServerValuesFile serverValues;
         public static WorldValuesFile worldValues;

@@ -444,27 +444,27 @@ namespace RimworldTogether.GameServer.Managers
 
         private static void ModListCommandAction()
         {
-            Logger.WriteToConsole($"Required Mods: [{Program.loadedRequiredMods.Count()}]", Logger.LogMode.Title, false);
+            Logger.WriteToConsole($"Required Mods: [{ModManager.requiredMods.Count()}]", Logger.LogMode.Title, false);
             Logger.WriteToConsole("----------------------------------------", Logger.LogMode.Title, false);
-            foreach (string str in Program.loadedRequiredMods)
+            foreach (ModFile modFile in ModManager.requiredMods)
             {
-                Logger.WriteToConsole($"{str}", Logger.LogMode.Warning, writeToLogs: false);
+                Logger.WriteToConsole($"{modFile.name}", Logger.LogMode.Warning, false);
             }
             Logger.WriteToConsole("----------------------------------------", Logger.LogMode.Title, false);
 
-            Logger.WriteToConsole($"Optional Mods: [{Program.loadedOptionalMods.Count()}]", Logger.LogMode.Title, false);
+            Logger.WriteToConsole($"Optional Mods: [{ModManager.optionalMods.Count()}]", Logger.LogMode.Title, false);
             Logger.WriteToConsole("----------------------------------------", Logger.LogMode.Title, false);
-            foreach (string str in Program.loadedOptionalMods)
+            foreach (ModFile modFile in ModManager.optionalMods)
             {
-                Logger.WriteToConsole($"{str}", Logger.LogMode.Warning, writeToLogs: false);
+                Logger.WriteToConsole($"{modFile.name}", Logger.LogMode.Warning, false);
             }
             Logger.WriteToConsole("----------------------------------------", Logger.LogMode.Title, false);
 
-            Logger.WriteToConsole($"Forbidden Mods: [{Program.loadedForbiddenMods.Count()}]", Logger.LogMode.Title, false);
+            Logger.WriteToConsole($"Forbidden Mods: [{ModManager.forbiddenMods.Count()}]", Logger.LogMode.Title, false);
             Logger.WriteToConsole("----------------------------------------", Logger.LogMode.Title, false);
-            foreach (string str in Program.loadedForbiddenMods)
+            foreach (ModFile modFile in ModManager.forbiddenMods)
             {
-                Logger.WriteToConsole($"{str}", Logger.LogMode.Warning, writeToLogs: false);
+                Logger.WriteToConsole($"{modFile.name}", Logger.LogMode.Warning, false);
             }
             Logger.WriteToConsole("----------------------------------------", Logger.LogMode.Title, false);
         }
